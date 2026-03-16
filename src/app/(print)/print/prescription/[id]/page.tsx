@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { MEDICINE_TIMINGS } from "@/lib/utils";
 import { parseEyeTemplateData, hasEyeData } from "@/lib/prescription-templates/eye";
+import { PrintControls } from "@/components/print/print-controls";
 
 export default async function PrescriptionPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,48 +39,7 @@ export default async function PrescriptionPrintPage({ params }: { params: Promis
   return (
     <div>
       {/* Print button — hidden on print */}
-      <div
-        className="no-print"
-        style={{
-          position: "fixed",
-          top: "16px",
-          right: "16px",
-          zIndex: 50,
-          display: "flex",
-          gap: "8px",
-        }}
-      >
-        <button
-          onClick={() => window.print()}
-          style={{
-            background: "#0284c7",
-            color: "white",
-            border: "none",
-            padding: "8px 20px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontFamily: "system-ui",
-          }}
-        >
-          🖨 Print / Save PDF
-        </button>
-        <button
-          onClick={() => window.close()}
-          style={{
-            background: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #e5e7eb",
-            padding: "8px 16px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontFamily: "system-ui",
-          }}
-        >
-          Close
-        </button>
-      </div>
+      <PrintControls />
 
       {/* A4 Prescription */}
       <div
