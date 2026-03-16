@@ -22,13 +22,11 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://docpres:docpres@db:5432/docpres?schema=public
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: change-me-in-prod
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-prod}
+      AUTH_TRUST_HOST: "true"
     ports:
       - "3000:3000"
-    # If you need file uploads or other mounted storage, add volumes here
-    # volumes:
-    #   - ./uploads:/app/uploads
 
 volumes:
   db_data:
