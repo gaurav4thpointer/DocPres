@@ -8,8 +8,8 @@ services:
       POSTGRES_DB: docpres
       POSTGRES_USER: docpres
       POSTGRES_PASSWORD: docpres
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
@@ -25,8 +25,8 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-prod}
       AUTH_TRUST_HOST: "true"
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
 
 volumes:
   db_data:
