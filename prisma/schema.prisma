@@ -6,43 +6,89 @@ datasource db {
   provider = "postgresql"
 }
 
-model Doctor {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  password         String
-  name             String
-  qualification    String?
-  specialization   String?
-  registrationNo   String?
-  mobile           String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+enum UserRole {
+  ADMIN
+  CLINIC
+  DOCTOR
+}
 
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Clinic {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  email      String   @unique
+  password   String
+  address    String?
+  phone      String?
+  logoPath   String?
+  footerText String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  doctors           Doctor[]
+  clinicSettings    ClinicSettings[]
+  patients          Patient[]
+  medicines         Medicine[]
+  prescriptions     Prescription[]
+  adviceTemplates    AdviceTemplate[]
+}
+
+model Doctor {
+  id                     String           @id @default(cuid())
+  clinicId               String
+  email                  String
+  password               String
+  name                   String
+  qualification          String?
+  specialization         String?
+  registrationNo         String?
+  mobile                 String?
+  defaultPrescriptionType PrescriptionType? @default(GENERAL)
+  isActive               Boolean          @default(true)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  clinic           Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   clinicSettings   ClinicSettings?
   patients         Patient[]
   medicines        Medicine[]
   prescriptions    Prescription[]
   adviceTemplates  AdviceTemplate[]
+
+  @@unique([clinicId, email])
 }
 
 model ClinicSettings {
-  id           String   @id @default(cuid())
-  doctorId     String   @unique
-  clinicName   String?
-  address      String?
-  phone        String?
-  logoPath     String?
+  id            String   @id @default(cuid())
+  doctorId      String   @unique
+  clinicId      String
+  clinicName    String?
+  address       String?
+  phone         String?
+  logoPath      String?
   signaturePath String?
-  stampPath    String?
-  footerText   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  stampPath     String?
+  footerText    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  doctor       Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor        Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 }
 
 model Patient {
   id               String   @id @default(cuid())
+  clinicId         String
   doctorId         String
   fullName         String
   age              Int?
@@ -57,12 +103,14 @@ model Patient {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor           Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   prescriptions    Prescription[]
 }
 
 model Medicine {
   id               String   @id @default(cuid())
+  clinicId         String
   doctorId         String
   name             String
   genericName      String?
@@ -77,12 +125,14 @@ model Medicine {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor           Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   prescriptionItems PrescriptionItem[]
 }
 
 model Prescription {
   id               String           @id @default(cuid())
+  clinicId         String
   doctorId         String
   patientId        String
   status           PrescriptionStatus @default(DRAFT)
@@ -99,6 +149,7 @@ model Prescription {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  clinic           Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor           Doctor           @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient          Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
   items            PrescriptionItem[]
@@ -126,12 +177,14 @@ model PrescriptionItem {
 
 model AdviceTemplate {
   id        String   @id @default(cuid())
+  clinicId  String
   doctorId  String
   title     String
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 }
 

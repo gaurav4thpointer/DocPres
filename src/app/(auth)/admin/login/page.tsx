@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Stethoscope, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Shield, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -18,7 +18,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export default function LoginPage() {
+export default function AdminLoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +42,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
-        router.push("/dashboard");
+        router.push("/admin");
         router.refresh();
       }
     } finally {
@@ -51,20 +51,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-blue-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-sky-600 shadow-lg mb-4">
-            <Stethoscope className="h-8 w-8 text-white" />
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-slate-800 shadow-lg mb-4">
+            <Shield className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DocPres</h1>
-          <p className="text-gray-500 mt-1 text-sm">Digital Prescription Manager</p>
+          <h1 className="text-2xl font-bold text-gray-900">DocPres Admin</h1>
+          <p className="text-gray-500 mt-1 text-sm">System administration portal</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Sign in to your account</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Admin sign in</h2>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField label="Email address" error={errors.email?.message} htmlFor="email">
@@ -73,7 +71,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="doctor@clinic.com"
+                  placeholder="admin@docpres.com"
                   className="pl-9"
                   {...register("email")}
                 />
@@ -112,20 +110,11 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center">
-            <a href="/forgot-password" className="text-sm text-sky-600 hover:text-sky-700">
-              Forgot your password?
+            <a href="/login" className="text-sm text-sky-600 hover:text-sky-700">
+              ← Back to regular login
             </a>
           </div>
         </div>
-
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Secure doctor portal · DocPres v1.0
-        </p>
-        <p className="text-center mt-2">
-          <a href="/admin/login" className="text-xs text-gray-500 hover:text-gray-700">
-            Admin login →
-          </a>
-        </p>
       </div>
     </div>
   );

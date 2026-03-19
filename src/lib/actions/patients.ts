@@ -22,9 +22,13 @@ const patientSchema = z.object({
 export async function getPatients(search?: string, page = 1, limit = 20) {
   const session = await auth();
   if (!session?.user?.id) return { patients: [], total: 0 };
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) return { patients: [], total: 0 };
 
   const where = {
-    doctorId: session.user.id,
+    clinicId,
+    ...(role === "DOCTOR" && { doctorId: session.user.id }),
     ...(search && {
       OR: [
         { fullName: { contains: search, mode: "insensitive" as const } },
@@ -49,9 +53,16 @@ export async function getPatients(search?: string, page = 1, limit = 20) {
 export async function getPatient(id: string) {
   const session = await auth();
   if (!session?.user?.id) return null;
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  if (!clinicId) return null;
 
+  const role = (session.user as { role?: string }).role;
   return prisma.patient.findFirst({
-    where: { id, doctorId: session.user.id },
+    where: {
+      id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+    },
     include: {
       prescriptions: {
         orderBy: { prescriptionDate: "desc" },
@@ -65,6 +76,19 @@ export async function getPatient(id: string) {
 export async function createPatient(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
+
+  let doctorId = session.user.id;
+  if (role === "CLINIC") {
+    const firstDoctor = await prisma.doctor.findFirst({
+      where: { clinicId },
+      select: { id: true },
+    });
+    if (!firstDoctor) throw new Error("Clinic has no doctors. Add a doctor first.");
+    doctorId = firstDoctor.id;
+  }
 
   const raw = {
     fullName: formData.get("fullName"),
@@ -84,7 +108,8 @@ export async function createPatient(formData: FormData) {
 
   const patient = await prisma.patient.create({
     data: {
-      doctorId: session.user.id,
+      clinicId,
+      doctorId,
       ...parsed.data,
       dateOfBirth: parsed.data.dateOfBirth ? new Date(parsed.data.dateOfBirth) : null,
       age: parsed.data.age ?? null,
@@ -99,6 +124,8 @@ export async function createPatient(formData: FormData) {
 export async function updatePatient(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  if (!clinicId) throw new Error("No clinic context");
 
   const raw = {
     fullName: formData.get("fullName"),
@@ -116,8 +143,13 @@ export async function updatePatient(id: string, formData: FormData) {
   const parsed = patientSchema.safeParse(raw);
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
+  const role = (session.user as { role?: string }).role;
   const patient = await prisma.patient.updateMany({
-    where: { id, doctorId: session.user.id },
+    where: {
+      id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+    },
     data: {
       ...parsed.data,
       dateOfBirth: parsed.data.dateOfBirth ? new Date(parsed.data.dateOfBirth) : null,
@@ -134,9 +166,16 @@ export async function updatePatient(id: string, formData: FormData) {
 export async function deletePatient(id: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  if (!clinicId) throw new Error("No clinic context");
 
+  const role = (session.user as { role?: string }).role;
   await prisma.patient.deleteMany({
-    where: { id, doctorId: session.user.id },
+    where: {
+      id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+    },
   });
 
   revalidatePath("/patients");

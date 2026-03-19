@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Reset your password</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Password reset via email is not available in this version. Contact your system administrator to reset the doctor account password.
+            Password reset via email is not available. Contact your system administrator to reset your clinic or doctor account password from the admin panel.
           </p>
 
           <FormField label="Email address" htmlFor="email">

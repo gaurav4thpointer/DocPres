@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Doctor, ClinicSettings, AdviceTemplate } from "@prisma/client";
+import { Doctor, ClinicSettings, AdviceTemplate, PrescriptionType } from "@prisma/client";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,17 +16,24 @@ import { Save, Plus, Trash2, Upload, User, Building2, BookOpen } from "lucide-re
 import Image from "next/image";
 
 type DoctorWithClinic = Doctor & { clinicSettings: ClinicSettings | null };
+type SettingsDoctor = Pick<
+  DoctorWithClinic,
+  "id" | "name" | "qualification" | "specialization" | "registrationNo" | "mobile" | "clinicSettings"
+> & { defaultPrescriptionType?: PrescriptionType | null };
 
 interface Props {
-  doctor: DoctorWithClinic | null;
+  doctor: SettingsDoctor | null;
   adviceTemplates: AdviceTemplate[];
+  isClinic?: boolean;
 }
 
-export function SettingsClient({ doctor, adviceTemplates: initialTemplates }: Props) {
+export function SettingsClient({ doctor, adviceTemplates: initialTemplates, isClinic }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
-  const [tab, setTab] = useState<"doctor" | "clinic" | "advice">("doctor");
+  const [tab, setTab] = useState<"doctor" | "clinic" | "advice">(isClinic ? "clinic" : "doctor");
+
+  const handleTabClick = (id: string) => setTab(id as "doctor" | "clinic" | "advice");
   const [templates, setTemplates] = useState(initialTemplates);
   const [newAdviceTitle, setNewAdviceTitle] = useState("");
   const [newAdviceContent, setNewAdviceContent] = useState("");
@@ -92,7 +99,7 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates }: Pr
   };
 
   const tabs = [
-    { id: "doctor", label: "Doctor Profile", icon: User },
+    ...(!isClinic ? [{ id: "doctor", label: "Doctor Profile", icon: User }] : []),
     { id: "clinic", label: "Clinic Settings", icon: Building2 },
     { id: "advice", label: "Advice Templates", icon: BookOpen },
   ] as const;
@@ -106,7 +113,7 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates }: Pr
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => handleTabClick(id)}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === id
                 ? "border-sky-600 text-sky-600"
@@ -139,6 +146,19 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates }: Pr
                 </FormField>
                 <FormField label="Mobile">
                   <Input name="mobile" defaultValue={doctor?.mobile ?? ""} placeholder="+91 98765 43210" />
+                </FormField>
+                <FormField label="Default Prescription Category" className="col-span-2">
+                  <select
+                    name="defaultPrescriptionType"
+                    defaultValue={doctor?.defaultPrescriptionType ?? PrescriptionType.GENERAL}
+                    className="flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm"
+                  >
+                    <option value={PrescriptionType.GENERAL}>General</option>
+                    <option value={PrescriptionType.EYE}>Eye</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Default category when creating new prescriptions
+                  </p>
                 </FormField>
               </div>
               <div className="flex justify-end">

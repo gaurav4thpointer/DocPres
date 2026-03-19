@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Doctor" ADD COLUMN     "isActive" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "isAdmin" BOOLEAN NOT NULL DEFAULT false;

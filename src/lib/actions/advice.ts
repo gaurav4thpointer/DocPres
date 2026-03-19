@@ -13,9 +13,15 @@ const adviceSchema = z.object({
 export async function getAdviceTemplates() {
   const session = await auth();
   if (!session?.user?.id) return [];
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) return [];
 
   return prisma.adviceTemplate.findMany({
-    where: { doctorId: session.user.id },
+    where: {
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+    },
     orderBy: { title: "asc" },
   });
 }
@@ -23,6 +29,19 @@ export async function getAdviceTemplates() {
 export async function createAdviceTemplate(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
+
+  let doctorId = session.user.id;
+  if (role === "CLINIC") {
+    const firstDoctor = await prisma.doctor.findFirst({
+      where: { clinicId },
+      select: { id: true },
+    });
+    if (!firstDoctor) throw new Error("Clinic has no doctors. Add a doctor first.");
+    doctorId = firstDoctor.id;
+  }
 
   const parsed = adviceSchema.safeParse({
     title: formData.get("title"),
@@ -31,7 +50,7 @@ export async function createAdviceTemplate(formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
   const template = await prisma.adviceTemplate.create({
-    data: { doctorId: session.user.id, ...parsed.data },
+    data: { clinicId, doctorId, ...parsed.data },
   });
 
   revalidatePath("/settings");
@@ -41,9 +60,16 @@ export async function createAdviceTemplate(formData: FormData) {
 export async function deleteAdviceTemplate(id: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
 
   await prisma.adviceTemplate.deleteMany({
-    where: { id, doctorId: session.user.id },
+    where: {
+      id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+    },
   });
 
   revalidatePath("/settings");

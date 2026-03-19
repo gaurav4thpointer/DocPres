@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { uploadFile } from "@/lib/upload";
+import { PrescriptionType } from "@prisma/client";
 
 const doctorSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -13,6 +14,7 @@ const doctorSchema = z.object({
   registrationNo: z.string().optional(),
   mobile: z.string().optional(),
   email: z.string().email().optional(),
+  defaultPrescriptionType: z.nativeEnum(PrescriptionType).optional(),
 });
 
 const clinicSchema = z.object({
@@ -25,6 +27,37 @@ const clinicSchema = z.object({
 export async function getDoctorProfile() {
   const session = await auth();
   if (!session?.user?.id) return null;
+  const role = (session.user as { role?: string }).role;
+
+  if (role === "CLINIC") {
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: session.user.id },
+    });
+    if (!clinic) return null;
+    return {
+      id: clinic.id,
+      name: clinic.name,
+      qualification: null,
+      specialization: null,
+      registrationNo: null,
+      mobile: null,
+      email: clinic.email,
+      clinicSettings: {
+        id: "",
+        doctorId: "",
+        clinicId: clinic.id,
+        clinicName: clinic.name,
+        address: clinic.address,
+        phone: clinic.phone,
+        logoPath: clinic.logoPath,
+        footerText: clinic.footerText,
+        signaturePath: null,
+        stampPath: null,
+        createdAt: clinic.createdAt,
+        updatedAt: clinic.updatedAt,
+      },
+    };
+  }
 
   return prisma.doctor.findUnique({
     where: { id: session.user.id },
@@ -32,9 +65,61 @@ export async function getDoctorProfile() {
   });
 }
 
+export async function getDefaultPrescriptionType(): Promise<PrescriptionType> {
+  const session = await auth();
+  if (!session?.user?.id) return PrescriptionType.GENERAL;
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) return PrescriptionType.GENERAL;
+
+  if (role === "DOCTOR") {
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: session.user.id },
+      select: { defaultPrescriptionType: true },
+    });
+    return doctor?.defaultPrescriptionType ?? PrescriptionType.GENERAL;
+  }
+
+  const firstDoctor = await prisma.doctor.findFirst({
+    where: { clinicId },
+    select: { defaultPrescriptionType: true },
+  });
+  return firstDoctor?.defaultPrescriptionType ?? PrescriptionType.GENERAL;
+}
+
+export type DoctorForPrescription = {
+  id: string;
+  name: string;
+  defaultPrescriptionType: PrescriptionType | null;
+};
+
+export async function getDoctorsForPrescription(): Promise<DoctorForPrescription[]> {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) return [];
+
+  if (role === "DOCTOR") {
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, defaultPrescriptionType: true },
+    });
+    return doctor ? [doctor] : [];
+  }
+
+  return prisma.doctor.findMany({
+    where: { clinicId, isActive: true },
+    select: { id: true, name: true, defaultPrescriptionType: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 export async function updateDoctorProfile(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const role = (session.user as { role?: string }).role;
+  if (role === "CLINIC") throw new Error("Clinic profile cannot be updated from doctor settings");
 
   const data = {
     name: formData.get("name") as string,
@@ -42,6 +127,7 @@ export async function updateDoctorProfile(formData: FormData) {
     specialization: formData.get("specialization") as string,
     registrationNo: formData.get("registrationNo") as string,
     mobile: formData.get("mobile") as string,
+    defaultPrescriptionType: formData.get("defaultPrescriptionType") as PrescriptionType | undefined,
   };
 
   const parsed = doctorSchema.safeParse(data);
@@ -55,6 +141,9 @@ export async function updateDoctorProfile(formData: FormData) {
       specialization: parsed.data.specialization,
       registrationNo: parsed.data.registrationNo,
       mobile: parsed.data.mobile,
+      ...(parsed.data.defaultPrescriptionType && {
+        defaultPrescriptionType: parsed.data.defaultPrescriptionType,
+      }),
     },
   });
 
@@ -65,6 +154,8 @@ export async function updateDoctorProfile(formData: FormData) {
 export async function updateClinicSettings(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const role = (session.user as { role?: string }).role;
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
 
   const data = {
     clinicName: formData.get("clinicName") as string,
@@ -95,14 +186,28 @@ export async function updateClinicSettings(formData: FormData) {
     updates.stampPath = await uploadFile(stampFile, "clinic");
   }
 
-  await prisma.clinicSettings.upsert({
-    where: { doctorId: session.user.id },
-    update: updates,
-    create: {
-      doctorId: session.user.id,
-      ...updates,
-    },
-  });
+  if (role === "CLINIC" && clinicId) {
+    await prisma.clinic.update({
+      where: { id: clinicId },
+      data: {
+        name: updates.clinicName ?? undefined,
+        address: updates.address ?? undefined,
+        phone: updates.phone ?? undefined,
+        footerText: updates.footerText ?? undefined,
+        logoPath: updates.logoPath ?? undefined,
+      },
+    });
+  } else {
+    await prisma.clinicSettings.upsert({
+      where: { doctorId: session.user.id },
+      update: updates,
+      create: {
+        doctorId: session.user.id,
+        clinicId: clinicId!,
+        ...updates,
+      },
+    });
+  }
 
   revalidatePath("/settings");
   return { success: true };

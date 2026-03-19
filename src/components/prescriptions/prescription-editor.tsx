@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,18 +19,21 @@ import { PatientForm } from "@/components/patients/patient-form";
 import { createPrescription, updatePrescription } from "@/lib/actions/prescriptions";
 import { createPatient } from "@/lib/actions/patients";
 import { useToast } from "@/components/ui/toaster";
-import { PRESCRIPTION_TYPE_OPTIONS } from "@/lib/prescription-types";
+import type { DoctorForPrescription } from "@/lib/actions/doctor";
 import { parseEyeTemplateData } from "@/lib/prescription-templates/eye";
 import type { EyeTemplateData } from "@/lib/prescription-templates/eye";
 import { format } from "date-fns";
-import { Plus, UserPlus, CheckCircle2, Save, Printer, ArrowLeft, Eye, Stethoscope } from "lucide-react";
+import { Plus, UserPlus, CheckCircle2, Save, Printer, ArrowLeft, Eye } from "lucide-react";
 import Link from "next/link";
 
 interface Props {
   patients: Patient[];
   medicines: Medicine[];
   adviceTemplates: AdviceTemplate[];
+  doctors?: DoctorForPrescription[];
   defaultPatientId?: string;
+  /** Server-provided date for new prescriptions (avoids hydration mismatch from timezone differences) */
+  defaultPrescriptionDate?: string;
   editPrescription?: {
     id: string;
     patientId: string;
@@ -50,6 +53,7 @@ interface Props {
 
 const schema = z.object({
   patientId: z.string().min(1, "Please select a patient"),
+  doctorId: z.string().optional(),
   prescriptionDate: z.string().min(1),
   prescriptionType: z.nativeEnum(PrescriptionType),
   chiefComplaints: z.string().optional(),
@@ -73,16 +77,13 @@ const emptyRow = (): MedicineRowData => ({
   instructions: "",
 });
 
-const TYPE_ICONS: Record<PrescriptionType, React.ReactNode> = {
-  GENERAL: <Stethoscope className="h-4 w-4" />,
-  EYE: <Eye className="h-4 w-4" />,
-};
-
 export function PrescriptionEditor({
   patients,
   medicines,
   adviceTemplates,
+  doctors = [],
   defaultPatientId,
+  defaultPrescriptionDate,
   editPrescription,
 }: Props) {
   const router = useRouter();
@@ -99,6 +100,11 @@ export function PrescriptionEditor({
       : {}
   );
 
+  const defaultDoctor = doctors[0];
+  const defaultType =
+    editPrescription?.prescriptionType ??
+    (defaultDoctor?.defaultPrescriptionType ?? PrescriptionType.GENERAL);
+
   const {
     register,
     handleSubmit,
@@ -109,10 +115,11 @@ export function PrescriptionEditor({
     resolver: zodResolver(schema),
     defaultValues: {
       patientId: defaultPatientId ?? editPrescription?.patientId ?? "",
+      doctorId: defaultDoctor?.id ?? "",
       prescriptionDate: editPrescription
         ? format(new Date(editPrescription.prescriptionDate), "yyyy-MM-dd")
-        : format(new Date(), "yyyy-MM-dd"),
-      prescriptionType: editPrescription?.prescriptionType ?? PrescriptionType.GENERAL,
+        : defaultPrescriptionDate ?? format(new Date(), "yyyy-MM-dd"),
+      prescriptionType: defaultType,
       chiefComplaints: editPrescription?.chiefComplaints ?? "",
       diagnosis: editPrescription?.diagnosis ?? "",
       clinicalNotes: editPrescription?.clinicalNotes ?? "",
@@ -125,8 +132,19 @@ export function PrescriptionEditor({
     },
   });
 
+  const doctorId = watch("doctorId");
   const prescriptionType = watch("prescriptionType");
   const isEye = prescriptionType === "EYE";
+
+  const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? defaultDoctor;
+  const allowedPrescriptionType =
+    selectedDoctor?.defaultPrescriptionType ?? editPrescription?.prescriptionType ?? PrescriptionType.GENERAL;
+
+  useEffect(() => {
+    if (!editPrescription && selectedDoctor && prescriptionType !== allowedPrescriptionType) {
+      setValue("prescriptionType", allowedPrescriptionType);
+    }
+  }, [selectedDoctor?.id, allowedPrescriptionType, editPrescription, prescriptionType, setValue]);
 
   const addRow = () => setRows((r) => [...r, emptyRow()]);
   const removeRow = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
@@ -266,43 +284,27 @@ export function PrescriptionEditor({
             </CardContent>
           </Card>
 
-          {/* Prescription Type */}
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Prescription Type</p>
-              <div className="grid grid-cols-2 gap-3">
-                {PRESCRIPTION_TYPE_OPTIONS.map((opt) => {
-                  const isSelected = prescriptionType === opt.value;
-                  return (
-                    <label
-                      key={opt.value}
-                      className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-sky-500 bg-sky-50"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        className="sr-only"
-                        value={opt.value}
-                        {...register("prescriptionType")}
-                      />
-                      <span className={`mt-0.5 ${isSelected ? "text-sky-600" : "text-gray-400"}`}>
-                        {TYPE_ICONS[opt.value as PrescriptionType]}
-                      </span>
-                      <div>
-                        <p className={`text-sm font-medium ${isSelected ? "text-sky-700" : "text-gray-700"}`}>
-                          {opt.label}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Doctor selection - dropdown when multiple, hidden when single */}
+          {doctors.length > 1 ? (
+            <Card>
+              <CardContent className="p-5">
+                <FormField label="Prescribing Doctor" required>
+                  <select
+                    className="flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    {...register("doctorId")}
+                  >
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </CardContent>
+            </Card>
+          ) : (
+            doctors.length === 1 && <input type="hidden" {...register("doctorId")} />
+          )}
 
           {/* Clinical Details */}
           <Card>

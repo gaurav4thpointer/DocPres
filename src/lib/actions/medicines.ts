@@ -22,10 +22,14 @@ const medicineSchema = z.object({
 export async function getMedicines(search?: string) {
   const session = await auth();
   if (!session?.user?.id) return [];
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) return [];
 
   return prisma.medicine.findMany({
     where: {
-      doctorId: session.user.id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: "insensitive" } },
@@ -40,6 +44,19 @@ export async function getMedicines(search?: string) {
 export async function createMedicine(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
+
+  let doctorId = session.user.id;
+  if (role === "CLINIC") {
+    const firstDoctor = await prisma.doctor.findFirst({
+      where: { clinicId },
+      select: { id: true },
+    });
+    if (!firstDoctor) throw new Error("Clinic has no doctors. Add a doctor first.");
+    doctorId = firstDoctor.id;
+  }
 
   const raw = {
     name: formData.get("name"),
@@ -58,7 +75,7 @@ export async function createMedicine(formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
   const medicine = await prisma.medicine.create({
-    data: { doctorId: session.user.id, ...parsed.data },
+    data: { clinicId, doctorId, ...parsed.data },
   });
 
   revalidatePath("/medicines");
@@ -68,6 +85,9 @@ export async function createMedicine(formData: FormData) {
 export async function updateMedicine(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
 
   const raw = {
     name: formData.get("name"),
@@ -86,7 +106,7 @@ export async function updateMedicine(id: string, formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
   await prisma.medicine.updateMany({
-    where: { id, doctorId: session.user.id },
+    where: { id, clinicId, ...(role === "DOCTOR" && { doctorId: session.user.id }) },
     data: parsed.data,
   });
 
@@ -97,9 +117,12 @@ export async function updateMedicine(id: string, formData: FormData) {
 export async function toggleFavorite(id: string, isFavorite: boolean) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
 
   await prisma.medicine.updateMany({
-    where: { id, doctorId: session.user.id },
+    where: { id, clinicId, ...(role === "DOCTOR" && { doctorId: session.user.id }) },
     data: { isFavorite },
   });
 
@@ -110,9 +133,12 @@ export async function toggleFavorite(id: string, isFavorite: boolean) {
 export async function deleteMedicine(id: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
+  const clinicId = (session.user as { clinicId?: string }).clinicId;
+  const role = (session.user as { role?: string }).role;
+  if (!clinicId) throw new Error("No clinic context");
 
   await prisma.medicine.deleteMany({
-    where: { id, doctorId: session.user.id },
+    where: { id, clinicId, ...(role === "DOCTOR" && { doctorId: session.user.id }) },
   });
 
   revalidatePath("/medicines");

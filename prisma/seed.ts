@@ -10,7 +10,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Clean up existing data
+  // Clean up existing data (respect FK order)
   await prisma.prescriptionItem.deleteMany();
   await prisma.prescription.deleteMany();
   await prisma.adviceTemplate.deleteMany();
@@ -18,13 +18,41 @@ async function main() {
   await prisma.patient.deleteMany();
   await prisma.clinicSettings.deleteMany();
   await prisma.doctor.deleteMany();
+  await prisma.clinic.deleteMany();
+  await prisma.admin.deleteMany();
+
+  // Admin
+  const adminPassword = await bcrypt.hash("admin123", 12);
+  const admin = await prisma.admin.create({
+    data: {
+      email: "admin@docpres.com",
+      password: adminPassword,
+      name: "System Admin",
+    },
+  });
+
+  // Clinic
+  const clinicPassword = await bcrypt.hash("clinic123", 12);
+  const clinic = await prisma.clinic.create({
+    data: {
+      name: "Sharma Medical Centre",
+      slug: "sharma-medical",
+      email: "clinic@sharmamedical.com",
+      password: clinicPassword,
+      address: "101, Saraswati Building, MG Road, Pune - 411001, Maharashtra",
+      phone: "020-27654321",
+      footerText:
+        "This prescription is valid for 30 days. Follow the prescribed dosage strictly. Consult doctor if symptoms persist or worsen.",
+    },
+  });
 
   // Doctor
-  const passwordHash = await bcrypt.hash("doctor123", 12);
+  const doctorPassword = await bcrypt.hash("doctor123", 12);
   const doctor = await prisma.doctor.create({
     data: {
+      clinicId: clinic.id,
       email: "dr.sharma@clinic.com",
-      password: passwordHash,
+      password: doctorPassword,
       name: "Rajiv Sharma",
       qualification: "MBBS, MD (Internal Medicine)",
       specialization: "General Physician & Diabetologist",
@@ -37,11 +65,11 @@ async function main() {
   await prisma.clinicSettings.create({
     data: {
       doctorId: doctor.id,
-      clinicName: "Sharma Medical Centre",
-      address: "101, Saraswati Building, MG Road, Pune - 411001, Maharashtra",
-      phone: "020-27654321",
-      footerText:
-        "This prescription is valid for 30 days. Follow the prescribed dosage strictly. Consult doctor if symptoms persist or worsen.",
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      address: clinic.address,
+      phone: clinic.phone,
+      footerText: clinic.footerText,
     },
   });
 
@@ -49,6 +77,7 @@ async function main() {
   const medicines = await prisma.medicine.createManyAndReturn({
     data: [
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Paracetamol",
         genericName: "Acetaminophen",
@@ -62,6 +91,7 @@ async function main() {
         isFavorite: true,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Cetirizine",
         genericName: "Cetirizine HCl",
@@ -75,6 +105,7 @@ async function main() {
         isFavorite: true,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Amoxicillin",
         genericName: "Amoxicillin Trihydrate",
@@ -88,6 +119,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Metformin",
         genericName: "Metformin HCl",
@@ -101,6 +133,7 @@ async function main() {
         isFavorite: true,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Amlodipine",
         genericName: "Amlodipine Besylate",
@@ -114,6 +147,7 @@ async function main() {
         isFavorite: true,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Pantoprazole",
         genericName: "Pantoprazole Sodium",
@@ -127,6 +161,7 @@ async function main() {
         isFavorite: true,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Azithromycin",
         genericName: "Azithromycin Dihydrate",
@@ -140,6 +175,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Montelukast",
         genericName: "Montelukast Sodium",
@@ -153,6 +189,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Vitamin D3",
         genericName: "Cholecalciferol",
@@ -166,6 +203,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Atorvastatin",
         genericName: "Atorvastatin Calcium",
@@ -179,6 +217,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Ibuprofen",
         genericName: "Ibuprofen",
@@ -192,6 +231,7 @@ async function main() {
         isFavorite: false,
       },
       {
+        clinicId: clinic.id,
         doctorId: doctor.id,
         name: "Cough Syrup (DX)",
         genericName: "Dextromethorphan + Guaifenesin",
@@ -210,108 +250,22 @@ async function main() {
   // Advice Templates
   await prisma.adviceTemplate.createMany({
     data: [
-      {
-        doctorId: doctor.id,
-        title: "Fever / Viral",
-        content:
-          "Take adequate rest. Drink plenty of fluids (water, ORS, coconut water). Avoid cold food and drinks. Sponge bath if temperature is very high. Visit if fever exceeds 103°F or does not subside in 3 days.",
-      },
-      {
-        doctorId: doctor.id,
-        title: "Diabetes Advice",
-        content:
-          "Check blood sugar regularly. Follow a low-sugar, low-carb diet. Exercise 30 minutes daily (brisk walking). Avoid sweets, white rice, maida. Monitor HbA1c every 3 months.",
-      },
-      {
-        doctorId: doctor.id,
-        title: "Hypertension Advice",
-        content:
-          "Reduce salt intake. Avoid fried and processed food. Exercise regularly. Manage stress. Take BP medications regularly without skipping. Monitor BP daily at home.",
-      },
-      {
-        doctorId: doctor.id,
-        title: "General Wellness",
-        content:
-          "Maintain a balanced diet rich in vegetables and fruits. Sleep 7-8 hours daily. Drink 2-3 litres of water. Avoid smoking and alcohol. Exercise regularly.",
-      },
+      { clinicId: clinic.id, doctorId: doctor.id, title: "Fever / Viral", content: "Take adequate rest. Drink plenty of fluids (water, ORS, coconut water). Avoid cold food and drinks. Sponge bath if temperature is very high. Visit if fever exceeds 103°F or does not subside in 3 days." },
+      { clinicId: clinic.id, doctorId: doctor.id, title: "Diabetes Advice", content: "Check blood sugar regularly. Follow a low-sugar, low-carb diet. Exercise 30 minutes daily (brisk walking). Avoid sweets, white rice, maida. Monitor HbA1c every 3 months." },
+      { clinicId: clinic.id, doctorId: doctor.id, title: "Hypertension Advice", content: "Reduce salt intake. Avoid fried and processed food. Exercise regularly. Manage stress. Take BP medications regularly without skipping. Monitor BP daily at home." },
+      { clinicId: clinic.id, doctorId: doctor.id, title: "General Wellness", content: "Maintain a balanced diet rich in vegetables and fruits. Sleep 7-8 hours daily. Drink 2-3 litres of water. Avoid smoking and alcohol. Exercise regularly." },
     ],
   });
 
   // Patients
   const patients = await prisma.patient.createManyAndReturn({
     data: [
-      {
-        doctorId: doctor.id,
-        fullName: "Anita Verma",
-        age: 45,
-        gender: Gender.FEMALE,
-        mobile: "9876543001",
-        address: "12, Gandhi Nagar, Pune",
-        allergies: "Penicillin",
-        chronicConditions: "Hypertension, Hypothyroidism",
-        notes: "Patient prefers evening appointments",
-        weight: 68,
-      },
-      {
-        doctorId: doctor.id,
-        fullName: "Raju Patil",
-        age: 58,
-        gender: Gender.MALE,
-        mobile: "9876543002",
-        address: "45, Shivaji Colony, Pune",
-        allergies: "Sulfa drugs",
-        chronicConditions: "Diabetes Type 2, Hypertension",
-        notes: "Regular monthly follow-up",
-        weight: 82,
-      },
-      {
-        doctorId: doctor.id,
-        fullName: "Priya Mehta",
-        age: 28,
-        gender: Gender.FEMALE,
-        mobile: "9876543003",
-        address: "7, Model Colony, Pune",
-        allergies: null,
-        chronicConditions: null,
-        notes: "First visit - referred by Dr. Singh",
-        weight: 55,
-      },
-      {
-        doctorId: doctor.id,
-        fullName: "Suresh Kumar",
-        age: 35,
-        gender: Gender.MALE,
-        mobile: "9876543004",
-        address: "22, Karve Road, Pune",
-        allergies: null,
-        chronicConditions: null,
-        notes: null,
-        weight: 75,
-      },
-      {
-        doctorId: doctor.id,
-        fullName: "Kavita Joshi",
-        age: 62,
-        gender: Gender.FEMALE,
-        mobile: "9876543005",
-        address: "89, Deccan Gymkhana, Pune",
-        allergies: "NSAIDs",
-        chronicConditions: "Osteoarthritis, Diabetes Type 2",
-        notes: "Knee replacement surgery scheduled next year",
-        weight: 71,
-      },
-      {
-        doctorId: doctor.id,
-        fullName: "Arjun Nair",
-        age: 42,
-        gender: Gender.MALE,
-        mobile: "9876543006",
-        address: "14, Koregaon Park, Pune",
-        allergies: null,
-        chronicConditions: "Myopia, Presbyopia",
-        notes: "Wears glasses since age 16. Due for annual eye checkup.",
-        weight: 78,
-      },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Anita Verma", age: 45, gender: Gender.FEMALE, mobile: "9876543001", address: "12, Gandhi Nagar, Pune", allergies: "Penicillin", chronicConditions: "Hypertension, Hypothyroidism", notes: "Patient prefers evening appointments", weight: 68 },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Raju Patil", age: 58, gender: Gender.MALE, mobile: "9876543002", address: "45, Shivaji Colony, Pune", allergies: "Sulfa drugs", chronicConditions: "Diabetes Type 2, Hypertension", notes: "Regular monthly follow-up", weight: 82 },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Priya Mehta", age: 28, gender: Gender.FEMALE, mobile: "9876543003", address: "7, Model Colony, Pune", allergies: null, chronicConditions: null, notes: "First visit - referred by Dr. Singh", weight: 55 },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Suresh Kumar", age: 35, gender: Gender.MALE, mobile: "9876543004", address: "22, Karve Road, Pune", allergies: null, chronicConditions: null, notes: null, weight: 75 },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Kavita Joshi", age: 62, gender: Gender.FEMALE, mobile: "9876543005", address: "89, Deccan Gymkhana, Pune", allergies: "NSAIDs", chronicConditions: "Osteoarthritis, Diabetes Type 2", notes: "Knee replacement surgery scheduled next year", weight: 71 },
+      { clinicId: clinic.id, doctorId: doctor.id, fullName: "Arjun Nair", age: 42, gender: Gender.MALE, mobile: "9876543006", address: "14, Koregaon Park, Pune", allergies: null, chronicConditions: "Myopia, Presbyopia", notes: "Wears glasses since age 16. Due for annual eye checkup.", weight: 78 },
     ],
   });
 
@@ -323,9 +277,9 @@ async function main() {
   const cetirizine = medicines.find((m) => m.name === "Cetirizine")!;
   const atorvastatin = medicines.find((m) => m.name === "Atorvastatin")!;
 
-  // Prescription 1 - Anita Verma (Finalized)
   await prisma.prescription.create({
     data: {
+      clinicId: clinic.id,
       doctorId: doctor.id,
       patientId: patients[0].id,
       status: PrescriptionStatus.FINALIZED,
@@ -334,41 +288,20 @@ async function main() {
       diagnosis: "Hypertension - uncontrolled, Essential",
       clinicalNotes: "BP: 158/96 mmHg. Pulse: 78 bpm. Advised dietary changes.",
       investigations: "CBC, Lipid Profile, Serum Electrolytes, ECG",
-      generalAdvice:
-        "Reduce salt intake. Avoid fried and processed food. Exercise regularly. Manage stress. Take BP medications regularly without skipping. Monitor BP daily at home.",
+      generalAdvice: "Reduce salt intake. Avoid fried and processed food. Exercise regularly. Manage stress. Take BP medications regularly without skipping. Monitor BP daily at home.",
       followUpDate: new Date("2025-04-10"),
       items: {
         create: [
-          {
-            medicineId: amlodipine.id,
-            medicineName: amlodipine.name,
-            strength: amlodipine.strength!,
-            dosage: amlodipine.defaultDosage!,
-            frequency: amlodipine.defaultFrequency!,
-            duration: amlodipine.defaultDuration!,
-            timing: amlodipine.defaultTiming,
-            instructions: amlodipine.defaultInstructions,
-            sortOrder: 0,
-          },
-          {
-            medicineId: pantoprazole.id,
-            medicineName: pantoprazole.name,
-            strength: pantoprazole.strength!,
-            dosage: pantoprazole.defaultDosage!,
-            frequency: pantoprazole.defaultFrequency!,
-            duration: "14 days",
-            timing: pantoprazole.defaultTiming,
-            instructions: pantoprazole.defaultInstructions,
-            sortOrder: 1,
-          },
+          { medicineId: amlodipine.id, medicineName: amlodipine.name, strength: amlodipine.strength!, dosage: amlodipine.defaultDosage!, frequency: amlodipine.defaultFrequency!, duration: amlodipine.defaultDuration!, timing: amlodipine.defaultTiming, instructions: amlodipine.defaultInstructions, sortOrder: 0 },
+          { medicineId: pantoprazole.id, medicineName: pantoprazole.name, strength: pantoprazole.strength!, dosage: pantoprazole.defaultDosage!, frequency: pantoprazole.defaultFrequency!, duration: "14 days", timing: pantoprazole.defaultTiming, instructions: pantoprazole.defaultInstructions, sortOrder: 1 },
         ],
       },
     },
   });
 
-  // Prescription 2 - Raju Patil (Finalized)
   await prisma.prescription.create({
     data: {
+      clinicId: clinic.id,
       doctorId: doctor.id,
       patientId: patients[1].id,
       status: PrescriptionStatus.FINALIZED,
@@ -377,52 +310,22 @@ async function main() {
       diagnosis: "Diabetes Type 2 - uncontrolled. Hypertension - stable.",
       clinicalNotes: "FBS: 186 mg/dL, PPBS: 248 mg/dL. HbA1c: 8.2%. BP: 138/88.",
       investigations: "HbA1c, FBS, PPBS, Kidney Function Test, Urine routine",
-      generalAdvice:
-        "Check blood sugar regularly. Follow a low-sugar, low-carb diet. Exercise 30 minutes daily (brisk walking). Avoid sweets, white rice, maida. Monitor HbA1c every 3 months.",
+      generalAdvice: "Check blood sugar regularly. Follow a low-sugar, low-carb diet. Exercise 30 minutes daily (brisk walking). Avoid sweets, white rice, maida. Monitor HbA1c every 3 months.",
       followUpDate: new Date("2025-04-12"),
       internalNotes: "Patient mentioned non-compliance with diet. Counseled again.",
       items: {
         create: [
-          {
-            medicineId: metformin.id,
-            medicineName: metformin.name,
-            strength: "1000mg",
-            dosage: "1 tablet",
-            frequency: "Twice daily (BD)",
-            duration: "Continue",
-            timing: MedicineTiming.AFTER_FOOD,
-            instructions: metformin.defaultInstructions,
-            sortOrder: 0,
-          },
-          {
-            medicineId: amlodipine.id,
-            medicineName: amlodipine.name,
-            strength: amlodipine.strength!,
-            dosage: amlodipine.defaultDosage!,
-            frequency: amlodipine.defaultFrequency!,
-            duration: "Continue",
-            timing: amlodipine.defaultTiming,
-            sortOrder: 1,
-          },
-          {
-            medicineId: atorvastatin.id,
-            medicineName: atorvastatin.name,
-            strength: "20mg",
-            dosage: "1 tablet",
-            frequency: "Once daily (OD)",
-            duration: "Continue",
-            timing: MedicineTiming.AFTER_FOOD,
-            instructions: "Bedtime",
-            sortOrder: 2,
-          },
+          { medicineId: metformin.id, medicineName: metformin.name, strength: "1000mg", dosage: "1 tablet", frequency: "Twice daily (BD)", duration: "Continue", timing: MedicineTiming.AFTER_FOOD, instructions: metformin.defaultInstructions, sortOrder: 0 },
+          { medicineId: amlodipine.id, medicineName: amlodipine.name, strength: amlodipine.strength!, dosage: amlodipine.defaultDosage!, frequency: amlodipine.defaultFrequency!, duration: "Continue", timing: amlodipine.defaultTiming, sortOrder: 1 },
+          { medicineId: atorvastatin.id, medicineName: atorvastatin.name, strength: "20mg", dosage: "1 tablet", frequency: "Once daily (OD)", duration: "Continue", timing: MedicineTiming.AFTER_FOOD, instructions: "Bedtime", sortOrder: 2 },
         ],
       },
     },
   });
 
-  // Prescription 3 - Priya Mehta (Draft - General)
   await prisma.prescription.create({
     data: {
+      clinicId: clinic.id,
       doctorId: doctor.id,
       patientId: patients[2].id,
       status: PrescriptionStatus.DRAFT,
@@ -432,36 +335,17 @@ async function main() {
       diagnosis: "Allergic Rhinitis",
       items: {
         create: [
-          {
-            medicineId: cetirizine.id,
-            medicineName: cetirizine.name,
-            strength: cetirizine.strength!,
-            dosage: cetirizine.defaultDosage!,
-            frequency: cetirizine.defaultFrequency!,
-            duration: cetirizine.defaultDuration!,
-            timing: cetirizine.defaultTiming,
-            instructions: cetirizine.defaultInstructions,
-            sortOrder: 0,
-          },
-          {
-            medicineId: paracetamol.id,
-            medicineName: paracetamol.name,
-            strength: paracetamol.strength!,
-            dosage: paracetamol.defaultDosage!,
-            frequency: paracetamol.defaultFrequency!,
-            duration: paracetamol.defaultDuration!,
-            timing: paracetamol.defaultTiming,
-            sortOrder: 1,
-          },
+          { medicineId: cetirizine.id, medicineName: cetirizine.name, strength: cetirizine.strength!, dosage: cetirizine.defaultDosage!, frequency: cetirizine.defaultFrequency!, duration: cetirizine.defaultDuration!, timing: cetirizine.defaultTiming, instructions: cetirizine.defaultInstructions, sortOrder: 0 },
+          { medicineId: paracetamol.id, medicineName: paracetamol.name, strength: paracetamol.strength!, dosage: paracetamol.defaultDosage!, frequency: paracetamol.defaultFrequency!, duration: paracetamol.defaultDuration!, timing: paracetamol.defaultTiming, sortOrder: 1 },
         ],
       },
     },
   });
 
-  // Prescription 4 - Arjun Nair (Finalized - Eye)
   const arjun = patients.find((p) => p.fullName === "Arjun Nair")!;
   await prisma.prescription.create({
     data: {
+      clinicId: clinic.id,
       doctorId: doctor.id,
       patientId: arjun.id,
       status: PrescriptionStatus.FINALIZED,
@@ -470,8 +354,7 @@ async function main() {
       chiefComplaints: "Blurring of vision, difficulty reading fine print, mild headache",
       diagnosis: "Myopia with Presbyopia, Bilateral",
       clinicalNotes: "IOP: RE 14 mmHg, LE 15 mmHg. Fundus normal. Slit lamp: clear media.",
-      generalAdvice:
-        "Use anti-glare screen protectors. Maintain 50 cm reading distance. Avoid prolonged screen exposure. Wear recommended glasses consistently.",
+      generalAdvice: "Use anti-glare screen protectors. Maintain 50 cm reading distance. Avoid prolonged screen exposure. Wear recommended glasses consistently.",
       followUpDate: new Date("2025-09-14"),
       templateData: {
         visionRight: "6/12",
@@ -494,24 +377,15 @@ async function main() {
       },
       items: {
         create: [
-          {
-            medicineName: "Lubricating Eye Drops (Carboxymethylcellulose 0.5%)",
-            strength: "10 ml",
-            dosage: "1 drop each eye",
-            frequency: "Four times daily (QID)",
-            duration: "1 month",
-            timing: MedicineTiming.ANYTIME,
-            instructions: "Instill before screen use and at bedtime",
-            sortOrder: 0,
-          },
+          { medicineName: "Lubricating Eye Drops (Carboxymethylcellulose 0.5%)", strength: "10 ml", dosage: "1 drop each eye", frequency: "Four times daily (QID)", duration: "1 month", timing: MedicineTiming.ANYTIME, instructions: "Instill before screen use and at bedtime", sortOrder: 0 },
         ],
       },
     },
   });
 
-  // Prescription 5 - Suresh Kumar (Draft - General)
   await prisma.prescription.create({
     data: {
+      clinicId: clinic.id,
       doctorId: doctor.id,
       patientId: patients[3].id,
       status: PrescriptionStatus.DRAFT,
@@ -522,17 +396,7 @@ async function main() {
       investigations: "CBC with differential, Throat swab culture",
       items: {
         create: [
-          {
-            medicineId: paracetamol.id,
-            medicineName: paracetamol.name,
-            strength: paracetamol.strength!,
-            dosage: paracetamol.defaultDosage!,
-            frequency: paracetamol.defaultFrequency!,
-            duration: "5 days",
-            timing: paracetamol.defaultTiming,
-            instructions: paracetamol.defaultInstructions,
-            sortOrder: 0,
-          },
+          { medicineId: paracetamol.id, medicineName: paracetamol.name, strength: paracetamol.strength!, dosage: paracetamol.defaultDosage!, frequency: paracetamol.defaultFrequency!, duration: "5 days", timing: paracetamol.defaultTiming, instructions: paracetamol.defaultInstructions, sortOrder: 0 },
         ],
       },
     },
@@ -540,14 +404,13 @@ async function main() {
 
   console.log("✅ Seed complete!");
   console.log("\n📋 Login credentials:");
-  console.log("   Email:    dr.sharma@clinic.com");
-  console.log("   Password: doctor123");
+  console.log("   Admin:  admin@docpres.com / admin123");
+  console.log("   Clinic: clinic@sharmamedical.com / clinic123");
+  console.log("   Doctor: dr.sharma@clinic.com / doctor123");
   console.log(`\n👨‍⚕️  Doctor: Dr. ${doctor.name}`);
   console.log(`👥  Patients: ${patients.length}`);
   console.log(`💊  Medicines: ${medicines.length}`);
-  console.log(`📄  Prescriptions: 5 (3 finalized, 2 draft)`);
-  console.log(`     - 4 General Prescriptions`);
-  console.log(`     - 1 Eye Prescription (Arjun Nair, Finalized)`);
+  console.log(`📄  Prescriptions: 5`);
 }
 
 main()
