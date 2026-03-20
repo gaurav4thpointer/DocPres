@@ -25,7 +25,7 @@ export default async function AdminLayout({
           <div className="flex justify-between items-center h-14">
             <Link href="/admin" className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-slate-700" />
-              <span className="font-semibold text-gray-900">DocPres Admin</span>
+              <span className="font-semibold text-gray-900">RxPad Admin</span>
             </Link>
             <form
               action={async () => {

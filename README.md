@@ -1,4 +1,4 @@
-# DocPres — Digital Prescription Manager
+# RxPad — Digital Prescription Manager
 
 A production-ready web application for a single doctor to create and manage digital prescriptions. Built with Next.js 14+, TypeScript, Tailwind CSS, PostgreSQL, and Prisma.
 

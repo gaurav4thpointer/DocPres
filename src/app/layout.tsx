@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DocPres - Digital Prescription Manager",
+  title: "RxPad - Digital Prescription Manager",
   description: "Manage your clinic prescriptions digitally",
 };
 

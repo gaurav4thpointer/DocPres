@@ -41,6 +41,7 @@ export const authConfig: NextAuthConfig = {
       if (isAdminLogin) return true;
       if (isForgotPassword || isResetPassword) return true;
       if (nextUrl.pathname === "/impersonate") return true;
+      if (nextUrl.pathname === "/") return true; // Landing page is public
 
       // Admin routes require ADMIN role
       if (isAdminRoute) {

@@ -12,7 +12,7 @@ export default function ForgotPasswordPage() {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-sky-600 shadow-lg mb-4">
             <Stethoscope className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DocPres</h1>
+          <h1 className="text-2xl font-bold text-gray-900">RxPad</h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">

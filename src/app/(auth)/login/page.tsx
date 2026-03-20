@@ -58,7 +58,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-sky-600 shadow-lg mb-4">
             <Stethoscope className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DocPres</h1>
+          <h1 className="text-2xl font-bold text-gray-900">RxPad</h1>
           <p className="text-gray-500 mt-1 text-sm">Digital Prescription Manager</p>
         </div>
 
@@ -119,7 +119,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Secure doctor portal · DocPres v1.0
+          Secure doctor portal · RxPad v1.0
         </p>
         <p className="text-center mt-2">
           <a href="/admin/login" className="text-xs text-gray-500 hover:text-gray-700">

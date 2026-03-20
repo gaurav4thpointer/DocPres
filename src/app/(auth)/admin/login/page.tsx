@@ -57,7 +57,7 @@ export default function AdminLoginPage() {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-slate-800 shadow-lg mb-4">
             <Shield className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DocPres Admin</h1>
+          <h1 className="text-2xl font-bold text-gray-900">RxPad Admin</h1>
           <p className="text-gray-500 mt-1 text-sm">System administration portal</p>
         </div>
 
@@ -71,7 +71,7 @@ export default function AdminLoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@docpres.com"
+                  placeholder="admin@rxpad.com"
                   className="pl-9"
                   {...register("email")}
                 />

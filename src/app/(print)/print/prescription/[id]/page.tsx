@@ -509,7 +509,7 @@ export default async function PrescriptionPrintPage({ params }: { params: Promis
             color: "#cbd5e1",
           }}
         >
-          DocPres · Digital Prescription
+          RxPad · Digital Prescription
         </div>
       </div>
 

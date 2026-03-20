@@ -25,7 +25,7 @@ async function main() {
   const adminPassword = await bcrypt.hash("admin123", 12);
   const admin = await prisma.admin.create({
     data: {
-      email: "admin@docpres.com",
+      email: "admin@rxpad.com",
       password: adminPassword,
       name: "System Admin",
     },
@@ -404,7 +404,7 @@ async function main() {
 
   console.log("✅ Seed complete!");
   console.log("\n📋 Login credentials:");
-  console.log("   Admin:  admin@docpres.com / admin123");
+  console.log("   Admin:  admin@rxpad.com / admin123");
   console.log("   Clinic: clinic@sharmamedical.com / clinic123");
   console.log("   Doctor: dr.sharma@clinic.com / doctor123");
   console.log(`\n👨‍⚕️  Doctor: Dr. ${doctor.name}`);

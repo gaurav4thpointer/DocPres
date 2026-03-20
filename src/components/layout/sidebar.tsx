@@ -36,7 +36,7 @@ export function Sidebar() {
           <Stethoscope className="h-5 w-5 text-white" />
         </div>
         <div>
-          <p className="text-sm font-bold text-gray-900">DocPres</p>
+          <p className="text-sm font-bold text-gray-900">RxPad</p>
           <p className="text-xs text-gray-500">Prescription Manager</p>
         </div>
       </div>
