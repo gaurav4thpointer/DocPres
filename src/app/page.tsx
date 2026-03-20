@@ -215,6 +215,61 @@ export default async function RootPage() {
         </div>
       </section>
 
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <h2 className="text-center text-3xl font-semibold tracking-tight text-slate-900">
+            Packages and pricing
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600">
+            Choose the package that matches your monthly usage. All plans follow
+            a pay-as-you-go model.
+          </p>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            <PricingCard
+              name="Starter"
+              usage="Up to 2,000 per month"
+              price="Rs 6"
+              model="Pay as you go"
+              features={[
+                "Patient management",
+                "Medicine library",
+                "General prescriptions",
+              ]}
+              ctaLabel="Choose Starter"
+              ctaHref="#contact-us"
+            />
+            <PricingCard
+              name="Growth"
+              usage="Up to 10,000 per month"
+              price="Rs 5"
+              model="Pay as you go"
+              features={[
+                "Everything in Starter",
+                "Eye prescription templates",
+                "Template-based advice",
+              ]}
+              ctaLabel="Choose Growth"
+              ctaHref="#contact-us"
+              highlighted
+            />
+            <PricingCard
+              name="Scale"
+              usage="Up to 50,000 per month"
+              price="Rs 4"
+              model="Pay as you go"
+              features={[
+                "Everything in Growth",
+                "High-volume print workflow",
+                "Priority onboarding support",
+              ]}
+              ctaLabel="Contact Sales"
+              ctaHref="#contact-us"
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="contact-us" className="border-b border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <div className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm md:grid-cols-2">
@@ -394,6 +449,70 @@ function InfoCard({ title, description }: { title: string; description: string }
     <div className="rounded-xl border border-slate-200 bg-white p-6">
       <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
       <p className="mt-2 text-sm text-slate-600">{description}</p>
+    </div>
+  );
+}
+
+function PricingCard({
+  name,
+  usage,
+  price,
+  model,
+  features,
+  ctaLabel,
+  ctaHref,
+  highlighted = false,
+}: {
+  name: string;
+  usage: string;
+  price: string;
+  model: string;
+  features: string[];
+  ctaLabel: string;
+  ctaHref: string;
+  highlighted?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-6 ${
+        highlighted
+          ? "border-sky-200 bg-sky-50"
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      <p
+        className={`text-sm font-semibold ${
+          highlighted ? "text-sky-700" : "text-slate-700"
+        }`}
+      >
+        {name}
+      </p>
+      <p className="mt-4 text-sm text-slate-600">{usage}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900">{price}</p>
+      <p className="mt-2 text-sm text-slate-600">{model}</p>
+      <div className="mt-5 border-t border-slate-200/80 pt-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Features
+        </p>
+        <ul className="mt-3 space-y-2">
+          {features.map((feature) => (
+            <li key={feature} className="flex items-start gap-2 text-sm text-slate-700">
+              <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <a
+        href={ctaHref}
+        className={`mt-6 inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          highlighted
+            ? "bg-sky-600 text-white hover:bg-sky-700"
+            : "bg-slate-900 text-white hover:bg-slate-800"
+        }`}
+      >
+        {ctaLabel}
+      </a>
     </div>
   );
 }
