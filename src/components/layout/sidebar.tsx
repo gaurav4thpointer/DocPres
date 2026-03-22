@@ -2,21 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import {
   LayoutDashboard,
   Users,
   Pill,
-  FileText,
   History,
   Settings,
   Stethoscope,
   LogOut,
   PlusCircle,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
+import type { UserRole } from "@prisma/client";
+import type { LucideIcon } from "lucide-react";
 
-const navItems = [
+const baseNavItems: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  highlight?: boolean;
+}[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/prescriptions/new", label: "New Prescription", icon: PlusCircle, highlight: true },
   { href: "/patients", label: "Patients", icon: Users },
@@ -25,8 +33,17 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+function buildNavItems(userRole?: UserRole) {
+  if (userRole !== "CLINIC") return baseNavItems;
+  const items = [...baseNavItems];
+  const medicinesIdx = items.findIndex((i) => i.href === "/medicines");
+  items.splice(medicinesIdx + 1, 0, { href: "/doctors", label: "Doctors", icon: UserCog });
+  return items;
+}
+
+export function Sidebar({ userRole }: { userRole?: UserRole }) {
   const pathname = usePathname();
+  const navItems = useMemo(() => buildNavItems(userRole), [userRole]);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-100 flex flex-col z-40">
@@ -49,6 +66,10 @@ export function Sidebar() {
               ? pathname === "/dashboard"
               : href === "/prescriptions/new"
               ? pathname === "/prescriptions/new"
+              : href === "/medicines"
+              ? pathname.startsWith("/medicines")
+              : href === "/doctors"
+              ? pathname.startsWith("/doctors")
               : pathname.startsWith(href) && href !== "/dashboard";
 
           return (

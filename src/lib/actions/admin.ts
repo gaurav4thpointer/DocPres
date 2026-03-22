@@ -108,16 +108,31 @@ export async function resetClinicPassword(clinicId: string, newPassword: string)
 export async function resetDoctorPassword(doctorId: string, newPassword: string) {
   const session = await auth();
   const role = (session?.user as { role?: UserRole })?.role;
-  if (role !== UserRole.ADMIN) throw new Error("Admin access required");
+  const sessionClinicId = (session?.user as { clinicId?: string })?.clinicId;
   if (newPassword.length < 6) throw new Error("Password must be at least 6 characters");
 
-  const hash = await bcrypt.hash(newPassword, 12);
-  await prisma.doctor.update({
-    where: { id: doctorId },
-    data: { password: hash },
-  });
+  if (role === UserRole.ADMIN) {
+    const hash = await bcrypt.hash(newPassword, 12);
+    await prisma.doctor.update({
+      where: { id: doctorId },
+      data: { password: hash },
+    });
+  } else if (role === UserRole.CLINIC && sessionClinicId) {
+    const doctor = await prisma.doctor.findFirst({
+      where: { id: doctorId, clinicId: sessionClinicId },
+    });
+    if (!doctor) throw new Error("Doctor not found");
+    const hash = await bcrypt.hash(newPassword, 12);
+    await prisma.doctor.update({
+      where: { id: doctorId },
+      data: { password: hash },
+    });
+  } else {
+    throw new Error("Access denied");
+  }
 
   revalidatePath("/admin");
+  revalidatePath("/doctors");
   return { success: true };
 }
 
@@ -149,7 +164,17 @@ const createDoctorSchema = z.object({
 export async function createDoctor(clinicId: string, formData: FormData) {
   const session = await auth();
   const role = (session?.user as { role?: UserRole })?.role;
-  if (role !== UserRole.ADMIN) throw new Error("Admin access required");
+  const sessionClinicId = (session?.user as { clinicId?: string })?.clinicId;
+
+  let targetClinicId: string;
+  if (role === UserRole.ADMIN) {
+    targetClinicId = clinicId;
+  } else if (role === UserRole.CLINIC && sessionClinicId) {
+    if (clinicId !== sessionClinicId) throw new Error("Access denied");
+    targetClinicId = sessionClinicId;
+  } else {
+    throw new Error("Access denied");
+  }
 
   const raw = {
     name: formData.get("name"),
@@ -166,14 +191,14 @@ export async function createDoctor(clinicId: string, formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
   const existing = await prisma.doctor.findFirst({
-    where: { clinicId, email: parsed.data.email },
+    where: { clinicId: targetClinicId, email: parsed.data.email },
   });
   if (existing) throw new Error("A doctor with this email already exists in this clinic");
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.doctor.create({
     data: {
-      clinicId,
+      clinicId: targetClinicId,
       name: parsed.data.name,
       email: parsed.data.email,
       password: passwordHash,
@@ -186,17 +211,30 @@ export async function createDoctor(clinicId: string, formData: FormData) {
   });
 
   revalidatePath("/admin");
+  revalidatePath("/doctors");
   return { success: true };
 }
 
 export async function getClinicDoctors(clinicId: string) {
   const session = await auth();
   const role = (session?.user as { role?: UserRole })?.role;
-  if (role !== UserRole.ADMIN) return [];
+  const sessionClinicId = (session?.user as { clinicId?: string })?.clinicId;
 
-  return prisma.doctor.findMany({
-    where: { clinicId },
-    select: { id: true, name: true, email: true, isActive: true, defaultPrescriptionType: true },
-    orderBy: { name: "asc" },
-  });
+  if (role === UserRole.ADMIN) {
+    return prisma.doctor.findMany({
+      where: { clinicId },
+      select: { id: true, name: true, email: true, isActive: true, defaultPrescriptionType: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  if (role === UserRole.CLINIC && sessionClinicId === clinicId) {
+    return prisma.doctor.findMany({
+      where: { clinicId },
+      select: { id: true, name: true, email: true, isActive: true, defaultPrescriptionType: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  return [];
 }

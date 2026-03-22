@@ -229,7 +229,7 @@ export default async function RootPage() {
             <PricingCard
               name="Starter"
               usage="Up to 2,000 per month"
-              price="Rs 6"
+              price="Rs 10"
               model="Pay as you go"
               features={[
                 "Patient management",
@@ -242,7 +242,7 @@ export default async function RootPage() {
             <PricingCard
               name="Growth"
               usage="Up to 10,000 per month"
-              price="Rs 5"
+              price="Rs 8"
               model="Pay as you go"
               features={[
                 "Everything in Starter",
@@ -256,7 +256,7 @@ export default async function RootPage() {
             <PricingCard
               name="Scale"
               usage="Up to 50,000 per month"
-              price="Rs 4"
+              price="Rs 6"
               model="Pay as you go"
               features={[
                 "Everything in Growth",
