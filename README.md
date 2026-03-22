@@ -1,292 +1,257 @@
 # RxPad — Digital Prescription Manager
 
-A production-ready web application for a single doctor to create and manage digital prescriptions. Built with Next.js 14+, TypeScript, Tailwind CSS, PostgreSQL, and Prisma.
+A web application for clinics and doctors to manage patients, medicines, and digital prescriptions with print-ready output. Built with Next.js 16 (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, Prisma 7, and NextAuth v5.
 
 ---
 
 ## Features
 
-- **Secure Authentication** — Doctor login with email + password, JWT sessions
-- **Dashboard** — Stats overview, recent patients, recent prescriptions, quick actions
-- **Patient Management** — Add, edit, view, search patients with full medical history
-- **Medicine Master** — Doctor-specific medicine list with favorites and autocomplete
-- **Prescription Creation** — Fast prescription editor with medicine autocomplete, dynamic rows, draft/finalize flow
-- **Prescription History** — Search, filter by status, view, duplicate, print
-- **Print Layout** — Clinic-ready A4 print view with header, Rx section, footer, signature/stamp
-- **Settings** — Doctor profile, clinic settings, logo/signature/stamp upload, advice templates
+- **Roles** — Platform **admin**, **clinic** accounts, and **doctor** accounts (credentials + JWT sessions)
+- **Multi-tenant** — Data is scoped by **clinic** and **doctor** (`clinicId` / `doctorId` on core models)
+- **Clinic management** — Clinic users see a **Doctors** section to manage doctors in their organization
+- **Admin console** — `/admin` for platform operators; optional **impersonation** handoff to act as a clinic (`/impersonate?token=…`)
+- **Dashboard** — Stats, recent patients, recent prescriptions, quick actions
+- **Patient management** — CRUD, search, medical history, prescription history per patient
+- **Medicine master** — Per-doctor catalog with favorites and autocomplete on prescriptions
+- **Prescriptions** — **General** and **Eye** types; eye charts use structured `templateData` (JSON) and templates under `src/lib/prescription-templates/`
+- **Workflow** — Draft / finalize; duplicate; print; internal notes excluded from print
+- **Settings** — Doctor profile, clinic branding (logo, signature, stamp), advice templates
+- **Marketing site** — Public landing at `/` (logged-in users redirect to `/dashboard`)
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|------------|
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
-| Styling | Tailwind CSS v4 |
+| UI | React 19, Radix UI primitives, Tailwind CSS v4 |
 | Database | PostgreSQL |
-| ORM | Prisma v7 |
-| Auth | NextAuth v5 (beta) |
-| Forms | React Hook Form + Zod v4 |
+| ORM | Prisma 7 (`prisma.config.ts` + `@prisma/adapter-pg`) |
+| Auth | NextAuth v5 (credentials, JWT sessions) |
+| Forms | React Hook Form + Zod 4 |
 | Icons | Lucide React |
-| File Uploads | Local filesystem (S3-ready abstraction) |
+| File uploads | Local filesystem under `public/uploads/` (`src/lib/upload.ts`, S3-ready shape) |
 
 ---
 
 ## Prerequisites
 
-- **Node.js** 18+ 
-- **PostgreSQL** 14+ running locally
-- **npm** or **pnpm**
+- **Node.js** 18+ (project dev deps target Node 20 types)
+- **PostgreSQL** 14+ (Docker Compose uses Postgres 16)
+- **npm**
 
 ---
 
-## Setup Instructions
+## Setup
 
-### 1. Navigate to the app directory
+### 1. Install dependencies
 
 ```bash
 cd docpres-app
-```
-
-### 2. Install dependencies (already done if you ran npm install)
-
-```bash
 npm install
 ```
 
-### 3. Configure environment variables
+### 2. Environment variables
 
-Copy `.env.example` to `.env` and update the values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+Create a `.env` file in the project root (see Docker Compose for a minimal production-style example):
 
 ```env
-# PostgreSQL connection string
-DATABASE_URL="postgresql://YOUR_USER:YOUR_PASSWORD@localhost:5432/docpres?schema=public"
+# PostgreSQL (Prisma reads this via prisma.config.ts)
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/docpres?schema=public"
 
-# Generate a secure random secret (minimum 32 characters)
+# NextAuth — use a long random secret (32+ characters)
 NEXTAUTH_SECRET="your-super-secret-key-at-least-32-characters-long"
+# Optional: NextAuth v5 also accepts AUTH_SECRET (used for impersonation JWT signing)
+# AUTH_SECRET="same-or-different-strong-secret"
 
-# App URL
 NEXTAUTH_URL="http://localhost:3000"
 
-# File upload directory (relative to project root)
+# Upload directory (relative to project root)
 UPLOAD_DIR="./public/uploads"
 ```
 
-**Generate a secure NEXTAUTH_SECRET:**
+Generate a secret:
+
 ```bash
 openssl rand -base64 32
 ```
 
-### 4. Create the PostgreSQL database
+### 3. Database
 
 ```bash
 createdb docpres
-# or using psql:
-psql -U postgres -c "CREATE DATABASE docpres;"
+# or: psql -U postgres -c "CREATE DATABASE docpres;"
 ```
 
-### 5. Run database migrations
+### 4. Migrate and seed
+
+Either step by step:
 
 ```bash
-npx prisma migrate dev --name init
+npm run db:migrate
+npm run db:seed
 ```
 
-### 6. Seed the database
+Or initial setup in one shot:
 
 ```bash
-npx prisma db seed
+npm run setup
 ```
 
-This creates:
-- **Doctor account**: `dr.sharma@clinic.com` / `doctor123`
-- **5 sample patients** with realistic data
-- **12 medicines** in the master list
-- **3 prescriptions** (2 finalized, 1 draft)
-- **4 advice templates**
+Seed creates:
 
-### 7. Start the development server
+- **Admin**: `admin@rxpad.com` / `admin123`
+- **Clinic**: `clinic@sharmamedical.com` / `clinic123`
+- **Doctor**: `dr.sharma@clinic.com` / `doctor123`
+- **6** sample patients, **12** medicines, **5** prescriptions (including **Eye** and draft examples), **4** advice templates
+
+### 5. Development server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000). Use `/login` for clinic and doctor accounts, `/admin/login` for the platform admin.
 
 ---
 
-## Login Credentials (Seed Data)
-
-```
-Email:    dr.sharma@clinic.com
-Password: doctor123
-```
-
----
-
-## App Navigation
+## Main routes
 
 | Route | Description |
 |-------|-------------|
-| `/dashboard` | Overview with stats and recent activity |
-| `/prescriptions/new` | Create a new prescription |
-| `/patients` | Patient list with search and pagination |
-| `/patients/[id]` | Patient profile with prescription history |
-| `/medicines` | Medicine master list |
+| `/` | Public landing (redirects to `/dashboard` if signed in) |
+| `/login` | Clinic and doctor sign-in |
+| `/forgot-password` | Password recovery UI |
+| `/dashboard` | Overview |
+| `/prescriptions/new` | New prescription |
 | `/prescriptions` | Prescription history |
-| `/prescriptions/[id]` | View/edit a prescription |
-| `/settings` | Doctor profile, clinic settings, advice templates |
-| `/print/prescription/[id]` | Print-ready prescription view |
+| `/prescriptions/[id]` | View / edit prescription |
+| `/patients` | Patients list |
+| `/patients/[id]` | Patient detail |
+| `/medicines` | Medicine master |
+| `/doctors` | Doctors (visible to **clinic** role) |
+| `/settings` | Profile and clinic print assets |
+| `/print/prescription/[id]` | Print layout |
+| `/admin/login` | Admin sign-in |
+| `/admin` | Admin console |
+| `/impersonate` | Consumes short-lived token to sign in as clinic (admin flow) |
 
 ---
 
-## Available Scripts
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm start` | Start production server |
+| `npm run lint` | ESLint |
+| `npm run db:migrate` | `prisma migrate dev` |
+| `npm run db:generate` | Regenerate Prisma Client |
+| `npm run db:seed` | Run `prisma/seed.ts` |
+| `npm run db:studio` | Prisma Studio |
+| `npm run setup` | Migrate (`init`) + seed |
+
+---
+
+## Docker
+
+From the repo root:
 
 ```bash
-# Development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Run database migrations
-npm run db:migrate
-
-# Generate Prisma client
-npm run db:generate
-
-# Seed database
-npm run db:seed
-
-# Open Prisma Studio (database GUI)
-npm run db:studio
+docker compose up --build
 ```
+
+Services: **Postgres** (`docpres` / `docpres`) and the **app** container with `DATABASE_URL` pointing at `db`. Set `NEXTAUTH_SECRET` (and optionally `NEXTAUTH_URL`) in your environment when deploying.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 docpres-app/
 ├── prisma/
-│   ├── schema.prisma          # Database schema
-│   └── seed.ts                # Sample data seeder
-├── prisma.config.ts           # Prisma v7 configuration
+│   ├── schema.prisma
+│   ├── migrations/
+│   └── seed.ts
+├── prisma.config.ts           # Prisma 7 config (datasource URL, seed command)
+├── docker-compose.yml
+├── Dockerfile
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/            # Login, forgot-password pages
-│   │   ├── (dashboard)/       # Protected app routes
-│   │   │   ├── dashboard/     # Dashboard page
-│   │   │   ├── patients/      # Patient management
-│   │   │   ├── medicines/     # Medicine master
-│   │   │   ├── prescriptions/ # Prescriptions (list, new, detail)
-│   │   │   └── settings/      # Profile and clinic settings
-│   │   ├── (print)/           # Print layout (no sidebar)
-│   │   │   └── print/prescription/[id]/
-│   │   ├── api/
-│   │   │   ├── auth/          # NextAuth handler
-│   │   │   └── upload/        # File upload API
+│   │   ├── (auth)/            # login, forgot-password, admin/login
+│   │   ├── (dashboard)/       # dashboard, patients, medicines, prescriptions, doctors, settings
+│   │   ├── (print)/           # print layout + /print/prescription/[id]
+│   │   ├── admin/             # platform admin UI
+│   │   ├── api/auth/          # NextAuth route handler
+│   │   ├── api/upload/        # logo / signature / stamp uploads
+│   │   ├── impersonate/       # clinic impersonation handoff
 │   │   ├── layout.tsx
-│   │   ├── page.tsx           # Root redirect
+│   │   ├── page.tsx           # public landing
 │   │   └── globals.css
 │   ├── components/
-│   │   ├── ui/                # Reusable UI: Button, Input, Card, Modal, etc.
-│   │   ├── layout/            # Sidebar, PageHeader
-│   │   ├── patients/          # PatientForm
-│   │   └── prescriptions/     # PrescriptionEditor, MedicineRow
+│   │   ├── ui/                # Buttons, inputs, dialogs, etc.
+│   │   ├── layout/            # Sidebar, page header
+│   │   ├── patients/
+│   │   ├── prescriptions/     # Editor, medicine rows, eye section
+│   │   └── print/
 │   ├── lib/
-│   │   ├── actions/           # Server actions
-│   │   │   ├── advice.ts      # Advice templates CRUD
-│   │   │   ├── doctor.ts      # Doctor/clinic settings
-│   │   │   ├── medicines.ts   # Medicine CRUD
-│   │   │   ├── patients.ts    # Patient CRUD
-│   │   │   └── prescriptions.ts # Prescription CRUD + stats
-│   │   ├── auth.ts            # NextAuth configuration
-│   │   ├── prisma.ts          # Prisma client singleton
-│   │   ├── upload.ts          # File upload abstraction
-│   │   └── utils.ts           # Helpers, constants, date utils
-│   ├── middleware.ts           # Auth protection middleware
+│   │   ├── actions/           # Server actions: patients, medicines, prescriptions, doctor, advice, admin
+│   │   ├── prescription-templates/  # general + eye defaults
+│   │   ├── auth.ts            # NextAuth + credentials + impersonation helpers
+│   │   ├── auth.config.ts     # JWT/session callbacks, route authorization
+│   │   ├── prisma.ts
+│   │   ├── upload.ts
+│   │   └── utils.ts
+│   ├── proxy.ts               # Next.js proxy: exports `auth` for protected routes
 │   └── types/
-│       └── next-auth.d.ts     # Session type extensions
-└── public/
-    └── uploads/               # Uploaded files (logo, signature, stamp)
+│       └── next-auth.d.ts
+└── public/uploads/
 ```
 
----
-
-## Data Model
-
-```
-Doctor
-  ├── ClinicSettings (1:1)
-  ├── Patient[] (1:many)
-  ├── Medicine[] (1:many)
-  ├── Prescription[] (1:many)
-  └── AdviceTemplate[] (1:many)
-
-Patient
-  └── Prescription[] (1:many)
-
-Prescription
-  └── PrescriptionItem[] (1:many)
-       └── Medicine? (many:1, optional)
-```
-
-**Prescription Statuses:**
-- `DRAFT` — Editable, not locked
-- `FINALIZED` — Locked for integrity, printable only
+Mutations are implemented as **Server Actions** under `src/lib/actions/` (no separate REST API for app data beyond NextAuth and uploads).
 
 ---
 
-## File Uploads
+## Data model (summary)
 
-Files (logo, signature, stamp) are stored locally under `./public/uploads/`.
+- **Admin** — platform users (separate from clinics)
+- **Clinic** — organization; owns shared scope for patients/medicines/prescriptions at the DB level with `doctorId` on rows for doctor ownership
+- **Doctor** — belongs to one clinic; `@@unique([clinicId, email])` (same email may exist in another clinic)
+- **ClinicSettings** — one row per doctor (print header, logo, signature, stamp)
+- **Patient**, **Medicine**, **Prescription**, **AdviceTemplate** — tied to `clinicId` and `doctorId`
+- **Prescription** → **PrescriptionItem** (optional link to **Medicine**)
 
-**To migrate to AWS S3**, update `src/lib/upload.ts`:
-- Replace `uploadFile()` with `S3Client.putObject()`
-- Replace `deleteFile()` with `S3Client.deleteObject()`
-- Return public S3 URLs instead of local paths
-- No other code changes required
+**Prescription status:** `DRAFT` (editable) · `FINALIZED` (locked, printable)
 
----
-
-## Business Rules
-
-1. Only one doctor login in V1 (multi-doctor support ready to add)
-2. Finalized prescriptions are **locked** — cannot be edited
-3. Use "Duplicate" to create a new prescription from an old one
-4. Internal notes are **never** shown on the print layout
-5. Medicine master provides autocomplete; free-text entry is also supported
+**Prescription type:** `GENERAL` · `EYE` (structured fields in `templateData`)
 
 ---
 
-## Production Deployment
+## File uploads
 
-1. Set all `.env` variables with production values
-2. Generate a strong `NEXTAUTH_SECRET`
-3. Run `npx prisma migrate deploy` (not `dev`)
-4. Run `npm run build && npm start`
-5. Configure a reverse proxy (nginx/Caddy) with HTTPS
-6. Ensure `UPLOAD_DIR` is a persistent volume path
+Files are stored under `./public/uploads/` by default. To move to S3, adapt `src/lib/upload.ts` (`uploadFile` / `deleteFile` and returned URLs) without changing callers.
 
 ---
 
-## Adding Multi-Doctor Support (Future V2)
+## Business rules
 
-The codebase is structured for easy multi-doctor expansion:
-- All DB queries already filter by `doctorId`
-- Add a `/signup` page to create additional doctor accounts
-- Add an admin role to manage accounts if needed
-- No schema changes required
+1. Finalized prescriptions cannot be edited; use **Duplicate** to create a new draft from an existing one.
+2. **Internal notes** are not shown on the print layout.
+3. Medicine master powers autocomplete; line items still allow free-text medicine names.
+4. Clinic users manage doctors; doctors use the main app sidebar without the Doctors item unless logged in as a clinic.
+
+---
+
+## Production deployment
+
+1. Set `DATABASE_URL`, `NEXTAUTH_SECRET` (and `NEXTAUTH_URL` / `AUTH_TRUST_HOST` as required by your host).
+2. Run `npx prisma migrate deploy` (not `migrate dev`).
+3. Run `npm run build && npm start` (or use the provided Dockerfile).
+4. Terminate TLS at your reverse proxy (nginx, Caddy, load balancer).
+5. Mount or point `UPLOAD_DIR` to persistent storage.
 
 ---
 

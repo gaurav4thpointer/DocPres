@@ -129,6 +129,8 @@ export async function resetDoctorPassword(doctorId: string, newPassword: string)
   if (newPassword.length < 6) throw new Error("Password must be at least 6 characters");
 
   if (role === UserRole.ADMIN) {
+    const existing = await prisma.doctor.findUnique({ where: { id: doctorId }, select: { id: true } });
+    if (!existing) throw new Error("Doctor not found");
     const hash = await bcrypt.hash(newPassword, 12);
     await prisma.doctor.update({
       where: { id: doctorId },
@@ -325,6 +327,8 @@ export async function getClinicDoctors(clinicId: string) {
   const sessionClinicId = (session?.user as { clinicId?: string })?.clinicId;
 
   if (role === UserRole.ADMIN) {
+    const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true } });
+    if (!clinic) return [];
     return prisma.doctor.findMany({
       where: { clinicId },
       select: { id: true, name: true, email: true, isActive: true, defaultPrescriptionType: true },

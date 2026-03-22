@@ -12,6 +12,7 @@ export default async function DashboardLayout({
   if (!session) redirect("/login");
 
   const userRole = (session.user as { role?: UserRole }).role;
+  if (userRole === UserRole.ADMIN) redirect("/admin");
 
   return (
     <div className="flex min-h-screen bg-gray-50">

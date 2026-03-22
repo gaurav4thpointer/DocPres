@@ -33,3 +33,18 @@ export async function requireAdmin() {
   const admin = await isAdmin();
   if (!admin) throw new Error("Admin access required");
 }
+
+/** Clinic or doctor sessions only — platform admin has no tenant. */
+export async function requireClinicScope(): Promise<{
+  clinicId: string;
+  userId: string;
+  role: UserRole;
+}> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  const role = session.user.role;
+  if (role === UserRole.ADMIN) throw new Error("Access denied");
+  const clinicId = session.user.clinicId;
+  if (!clinicId) throw new Error("No clinic context");
+  return { clinicId, userId: session.user.id, role };
+}

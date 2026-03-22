@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 import {
   Stethoscope,
   FileText,
@@ -27,7 +28,10 @@ const WHATSAPP_LINK = "https://wa.me/918800865479";
 
 export default async function RootPage() {
   const session = await auth();
-  if (session) redirect("/dashboard");
+  if (session) {
+    const role = (session.user as { role?: UserRole }).role;
+    redirect(role === UserRole.ADMIN ? "/admin" : "/dashboard");
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">

@@ -13,8 +13,10 @@ export default async function AdminLayout({
   const session = await auth();
   const role = (session?.user as { role?: UserRole })?.role;
 
-  // Allow unauthenticated access only to login page (handled by middleware)
-  if (session && role !== UserRole.ADMIN) {
+  if (!session) {
+    redirect("/admin/login");
+  }
+  if (role !== UserRole.ADMIN) {
     redirect("/dashboard");
   }
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { uploadFile } from "@/lib/upload";
-import { PrescriptionType } from "@prisma/client";
+import { PrescriptionType, UserRole } from "@prisma/client";
 
 const doctorSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -120,6 +120,7 @@ export async function updateDoctorProfile(formData: FormData) {
   if (!session?.user?.id) throw new Error("Not authenticated");
   const role = (session.user as { role?: string }).role;
   if (role === "CLINIC") throw new Error("Clinic profile cannot be updated from doctor settings");
+  if (role === UserRole.ADMIN) throw new Error("Access denied");
 
   const data = {
     name: formData.get("name") as string,
@@ -197,16 +198,18 @@ export async function updateClinicSettings(formData: FormData) {
         logoPath: updates.logoPath ?? undefined,
       },
     });
-  } else {
+  } else if (role === UserRole.DOCTOR && clinicId) {
     await prisma.clinicSettings.upsert({
       where: { doctorId: session.user.id },
       update: updates,
       create: {
         doctorId: session.user.id,
-        clinicId: clinicId!,
+        clinicId,
         ...updates,
       },
     });
+  } else {
+    throw new Error("Access denied");
   }
 
   revalidatePath("/settings");

@@ -10,7 +10,14 @@ function ImpersonateContent() {
   const submitted = useRef(false);
 
   useEffect(() => {
-    if (!token || submitted.current) return;
+    if (!token) {
+      if (!submitted.current) {
+        submitted.current = true;
+        window.location.href = "/admin?error=missing_impersonation_token";
+      }
+      return;
+    }
+    if (submitted.current) return;
     submitted.current = true;
     signIn("impersonate", {
       token,
