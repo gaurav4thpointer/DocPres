@@ -45,6 +45,12 @@ export default async function RootPage() {
           </div>
           <nav className="flex items-center gap-4">
             <Link
+              href="/blog"
+              className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
+            >
+              Blog
+            </Link>
+            <Link
               href="#contact-us"
               className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
             >

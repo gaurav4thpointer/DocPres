@@ -42,6 +42,7 @@ export const authConfig: NextAuthConfig = {
       if (isForgotPassword || isResetPassword) return true;
       if (nextUrl.pathname === "/impersonate") return true;
       if (nextUrl.pathname === "/") return true; // Landing page is public
+      if (nextUrl.pathname.startsWith("/blog")) return true;
 
       // Admin routes require ADMIN role
       if (isAdminRoute) {
