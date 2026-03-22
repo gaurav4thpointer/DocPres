@@ -1,6 +1,6 @@
 import { getPrescription } from "@/lib/actions/prescriptions";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
+import { formatInAppTimezone } from "@/lib/timezone";
 import { MEDICINE_TIMINGS } from "@/lib/utils";
 import { parseEyeTemplateData, hasEyeData } from "@/lib/prescription-templates/eye";
 import { PrintControls } from "@/components/print/print-controls";
@@ -166,12 +166,12 @@ export default async function PrescriptionPrintPage({ params }: { params: Promis
           )}
           <div style={{ marginLeft: "auto" }}>
             <span style={{ color: "#64748b" }}>Date: </span>
-            <strong>{format(new Date(prescription.prescriptionDate), "dd MMM yyyy")}</strong>
+            <strong>{formatInAppTimezone(prescription.prescriptionDate, "dd MMM yyyy")}</strong>
           </div>
           {prescription.followUpDate && (
             <div>
               <span style={{ color: "#64748b" }}>Follow-up: </span>
-              <strong>{format(new Date(prescription.followUpDate), "dd MMM yyyy")}</strong>
+              <strong>{formatInAppTimezone(prescription.followUpDate, "dd MMM yyyy")}</strong>
             </div>
           )}
         </div>

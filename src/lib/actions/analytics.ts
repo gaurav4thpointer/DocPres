@@ -2,12 +2,80 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { appCalendarYmd, startOfAppDay } from "@/lib/timezone";
 import { PrescriptionStatus, PrescriptionType, UserRole } from "@prisma/client";
+import { subDays } from "date-fns";
 
 const TREND_DAYS = 30;
 
-function startOfDayUtc(d: Date): string {
-  return d.toISOString().slice(0, 10);
+const FOLLOW_UP_WINDOW_DAYS = 14;
+const FOLLOW_UP_LIST_LIMIT = 75;
+
+export type FollowUpListRow = {
+  prescriptionId: string;
+  followUpDate: string;
+  prescriptionDate: string;
+  status: PrescriptionStatus;
+  patientName: string;
+  doctorName: string;
+  isOverdue: boolean;
+};
+
+export type FollowUpSummary = {
+  overdue: number;
+  dueInWindow: number;
+  windowDays: number;
+  items: FollowUpListRow[];
+};
+
+type FollowUpWhere = { clinicId: string; doctorId?: string };
+
+async function getFollowUpAnalytics(where: FollowUpWhere): Promise<FollowUpSummary> {
+  const startToday = startOfAppDay(new Date());
+  const windowEnd = new Date(startToday.getTime() + FOLLOW_UP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const [overdue, dueInWindow, listRows] = await Promise.all([
+    prisma.prescription.count({
+      where: { ...where, followUpDate: { lt: startToday } },
+    }),
+    prisma.prescription.count({
+      where: { ...where, followUpDate: { gte: startToday, lt: windowEnd } },
+    }),
+    prisma.prescription.findMany({
+      where: {
+        ...where,
+        OR: [
+          { followUpDate: { lt: startToday } },
+          { followUpDate: { gte: startToday, lt: windowEnd } },
+        ],
+      },
+      orderBy: { followUpDate: "asc" },
+      take: FOLLOW_UP_LIST_LIMIT,
+      select: {
+        id: true,
+        followUpDate: true,
+        prescriptionDate: true,
+        status: true,
+        patient: { select: { fullName: true } },
+        doctor: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  const items = listRows.map((r) => {
+    const fu = r.followUpDate!;
+    return {
+      prescriptionId: r.id,
+      followUpDate: fu.toISOString(),
+      prescriptionDate: r.prescriptionDate.toISOString(),
+      status: r.status,
+      patientName: r.patient.fullName,
+      doctorName: r.doctor.name,
+      isOverdue: fu < startToday,
+    };
+  });
+
+  return { overdue, dueInWindow, windowDays: FOLLOW_UP_WINDOW_DAYS, items };
 }
 
 function buildDailyBuckets(
@@ -15,16 +83,14 @@ function buildDailyBuckets(
   days: number
 ): { date: string; count: number }[] {
   const keys: string[] = [];
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const todayStart = startOfAppDay(new Date());
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setUTCDate(d.getUTCDate() - i);
-    keys.push(startOfDayUtc(d));
+    const dayStart = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+    keys.push(appCalendarYmd(dayStart));
   }
   const map = new Map(keys.map((k) => [k, 0]));
   for (const row of rows) {
-    const key = startOfDayUtc(new Date(row.prescriptionDate));
+    const key = appCalendarYmd(new Date(row.prescriptionDate));
     if (map.has(key)) map.set(key, (map.get(key) ?? 0) + 1);
   }
   return keys.map((date) => ({ date, count: map.get(date) ?? 0 }));
@@ -57,9 +123,7 @@ export async function getAdminPlatformAnalytics(): Promise<AdminPlatformAnalytic
   const session = await auth();
   if ((session?.user as { role?: UserRole })?.role !== UserRole.ADMIN) return null;
 
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - TREND_DAYS);
-  since.setUTCHours(0, 0, 0, 0);
+  const since = subDays(startOfAppDay(new Date()), TREND_DAYS);
 
   const [
     clinics,
@@ -138,6 +202,7 @@ export type ClinicScopeAnalytics = {
   prescriptionsByStatus: { draft: number; finalized: number };
   prescriptionsLast30Days: number;
   dailyPrescriptions: { date: string; count: number }[];
+  followUps: FollowUpSummary;
   byDoctor: {
     doctorId: string;
     name: string;
@@ -157,6 +222,7 @@ export type DoctorScopeAnalytics = {
   prescriptionsByType: { general: number; eye: number };
   prescriptionsLast30Days: number;
   dailyPrescriptions: { date: string; count: number }[];
+  followUps: FollowUpSummary;
 };
 
 export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | DoctorScopeAnalytics | null> {
@@ -166,9 +232,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
   const clinicId = (session.user as { clinicId?: string }).clinicId;
   if (!clinicId || role === UserRole.ADMIN) return null;
 
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - TREND_DAYS);
-  since.setUTCHours(0, 0, 0, 0);
+  const since = subDays(startOfAppDay(new Date()), TREND_DAYS);
 
   const baseWhere = { clinicId };
 
@@ -183,6 +247,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
       generalCount,
       eyeCount,
       recentRows,
+      followUps,
     ] = await Promise.all([
       prisma.patient.count({ where: doctorWhere }),
       prisma.prescription.count({ where: doctorWhere }),
@@ -192,6 +257,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
       prisma.prescription.count({ where: { ...doctorWhere, prescriptionType: PrescriptionType.GENERAL } }),
       prisma.prescription.count({ where: { ...doctorWhere, prescriptionType: PrescriptionType.EYE } }),
       prescriptionsInRange(doctorWhere, since),
+      getFollowUpAnalytics({ clinicId, doctorId: session.user.id }),
     ]);
 
     return {
@@ -201,6 +267,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
       prescriptionsByType: { general: generalCount, eye: eyeCount },
       prescriptionsLast30Days: recentRows.length,
       dailyPrescriptions: buildDailyBuckets(recentRows, TREND_DAYS),
+      followUps,
     };
   }
 
@@ -216,6 +283,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
     recentRows,
     rxByDoctor,
     patientsByDoctor,
+    followUps,
   ] = await Promise.all([
     prisma.doctor.count({ where: baseWhere }),
     prisma.doctor.count({ where: { ...baseWhere, isActive: true } }),
@@ -235,6 +303,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
       where: baseWhere,
       _count: { id: true },
     }),
+    getFollowUpAnalytics({ clinicId }),
   ]);
 
   const doctorIds = [...new Set([...rxByDoctor.map((g) => g.doctorId), ...patientsByDoctor.map((g) => g.doctorId)])];
@@ -265,6 +334,7 @@ export async function getClinicScopeAnalytics(): Promise<ClinicScopeAnalytics | 
     prescriptionsByStatus: { draft: draftCount, finalized: finalizedCount },
     prescriptionsLast30Days: recentRows.length,
     dailyPrescriptions: buildDailyBuckets(recentRows, TREND_DAYS),
+    followUps,
     byDoctor,
   };
 }
@@ -294,9 +364,7 @@ export async function getPortalLayoutKpis(): Promise<PortalLayoutKpis | null> {
   const clinicId = (session.user as { clinicId?: string }).clinicId;
   if (!clinicId || role === UserRole.ADMIN) return null;
 
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - TREND_DAYS);
-  since.setUTCHours(0, 0, 0, 0);
+  const since = subDays(startOfAppDay(new Date()), TREND_DAYS);
 
   const baseWhere = { clinicId };
 

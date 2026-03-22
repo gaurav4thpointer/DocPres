@@ -1,12 +1,15 @@
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
+import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import type {
   AdminPlatformAnalytics,
   ClinicScopeAnalytics,
   DoctorScopeAnalytics,
+  FollowUpSummary,
 } from "@/lib/actions/analytics";
-import { Building2, FileText, Pill, Stethoscope, Users } from "lucide-react";
+import { Building2, CalendarClock, FileText, Pill, Stethoscope, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 function StatCard({
@@ -54,6 +57,98 @@ function StatusRow({ label, value, total }: { label: string; value: number; tota
   );
 }
 
+function FollowUpsPanel({
+  followUps,
+  showDoctorColumn,
+}: {
+  followUps: FollowUpSummary;
+  showDoctorColumn: boolean;
+}) {
+  const { overdue, dueInWindow, windowDays, items } = followUps;
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <CalendarClock className="h-4 w-4 text-gray-400" />
+          <p className="text-sm font-semibold text-gray-700">Follow-ups due</p>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Based on follow-up date on each prescription (IST calendar days). Table lists overdue visits and
+          follow-ups in the next {windowDays} days, sorted by date (earliest first, capped at 75 rows).
+        </p>
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-4 py-3">
+            <p className="text-2xl font-bold text-rose-900">{overdue.toLocaleString()}</p>
+            <p className="text-sm text-rose-800/80">Overdue</p>
+          </div>
+          <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-4 py-3">
+            <p className="text-2xl font-bold text-sky-900">{dueInWindow.toLocaleString()}</p>
+            <p className="text-sm text-sky-800/80">Due in next {windowDays} days</p>
+          </div>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-sm text-gray-400">No follow-up dates in this range.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-100">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/80">
+                  <th className="px-3 py-2.5 font-medium">Follow-up</th>
+                  <th className="px-3 py-2.5 font-medium">Patient</th>
+                  {showDoctorColumn ? <th className="px-3 py-2.5 font-medium">Doctor</th> : null}
+                  <th className="px-3 py-2.5 font-medium">Rx date</th>
+                  <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 font-medium w-0" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {items.map((row) => (
+                  <tr
+                    key={row.prescriptionId}
+                    className={row.isOverdue ? "bg-rose-50/40" : undefined}
+                  >
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={row.isOverdue ? "font-medium text-rose-800" : "text-gray-900"}>
+                        {formatDate(row.followUpDate)}
+                      </span>
+                      {row.isOverdue ? (
+                        <Badge variant="warning" className="ml-2 text-[10px] px-1.5 py-0">
+                          Overdue
+                        </Badge>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-900">{row.patientName}</td>
+                    {showDoctorColumn ? (
+                      <td className="px-3 py-2.5 text-gray-600">{row.doctorName}</td>
+                    ) : null}
+                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                      {formatDate(row.prescriptionDate)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Badge variant={row.status === "FINALIZED" ? "success" : "warning"}>
+                        {row.status === "FINALIZED" ? "Final" : "Draft"}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Link
+                        href={`/prescriptions/${row.prescriptionId}`}
+                        className="text-sky-600 hover:text-sky-700 font-medium text-xs whitespace-nowrap"
+                      >
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DailyTrend({ points }: { points: { date: string; count: number }[] }) {
   const max = Math.max(...points.map((p) => p.count), 1);
   return (
@@ -98,7 +193,7 @@ export function AdminAnalyticsView({ data }: { data: AdminPlatformAnalytics }) {
           <CardContent className="p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">Prescriptions (last 30 days)</p>
             <p className="text-2xl font-bold text-gray-900 mb-4">{data.prescriptionsLast30Days.toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mb-2">Daily finalized + draft counts by prescription date (UTC)</p>
+            <p className="text-xs text-gray-500 mb-2">Daily finalized + draft counts by prescription date (IST)</p>
             <DailyTrend points={data.dailyPrescriptions} />
           </CardContent>
         </Card>
@@ -143,8 +238,8 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
     return (
       <div>
         <PageHeader
-          title="Your analytics"
-          description="Activity for your account across the last 30 days (trend) and all-time totals."
+          title="Your reporting"
+          description="Prescription volume (last 30 days and all-time), follow-ups due, and activity for your account."
         />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
           <StatCard label="Patients" value={data.totals.patients} icon={Users} color="bg-sky-50 text-sky-600" />
@@ -156,7 +251,7 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
             <CardContent className="p-5">
               <p className="text-sm font-semibold text-gray-700 mb-1">Prescriptions (last 30 days)</p>
               <p className="text-2xl font-bold text-gray-900 mb-4">{data.prescriptionsLast30Days.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mb-2">By prescription date (UTC)</p>
+              <p className="text-xs text-gray-500 mb-2">By prescription date (IST)</p>
               <DailyTrend points={data.dailyPrescriptions} />
             </CardContent>
           </Card>
@@ -171,6 +266,7 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
             </CardContent>
           </Card>
         </div>
+        <FollowUpsPanel followUps={data.followUps} showDoctorColumn={false} />
       </div>
     );
   }
@@ -180,8 +276,8 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
   return (
     <div>
       <PageHeader
-        title="Clinic analytics"
-        description="All doctors in your clinic — last 30 days trend and all-time totals."
+        title="Clinic reporting"
+        description="Prescription volume across all doctors, follow-ups due, and per-doctor activity."
       />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <StatCard label="Doctors" value={data.totals.doctors} icon={Stethoscope} color="bg-sky-50 text-sky-600" />
@@ -195,7 +291,7 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
           <CardContent className="p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">Prescriptions (last 30 days)</p>
             <p className="text-2xl font-bold text-gray-900 mb-4">{data.prescriptionsLast30Days.toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mb-2">By prescription date (UTC)</p>
+            <p className="text-xs text-gray-500 mb-2">By prescription date (IST)</p>
             <DailyTrend points={data.dailyPrescriptions} />
           </CardContent>
         </Card>
@@ -206,6 +302,9 @@ export function PortalAnalyticsView({ data }: { data: ClinicScopeAnalytics | Doc
             <StatusRow label="Finalized" value={data.prescriptionsByStatus.finalized} total={rxTotal} />
           </CardContent>
         </Card>
+      </div>
+      <div className="mb-6">
+        <FollowUpsPanel followUps={data.followUps} showDoctorColumn />
       </div>
       <Card>
         <CardContent className="p-5">

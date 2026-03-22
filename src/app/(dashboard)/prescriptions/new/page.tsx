@@ -3,7 +3,7 @@ import { getMedicines } from "@/lib/actions/medicines";
 import { getAdviceTemplates } from "@/lib/actions/advice";
 import { getDoctorsForPrescription } from "@/lib/actions/doctor";
 import { PrescriptionEditor } from "@/components/prescriptions/prescription-editor";
-import { format } from "date-fns";
+import { formatInAppTimezone } from "@/lib/timezone";
 
 export default async function NewPrescriptionPage({
   searchParams,
@@ -25,7 +25,7 @@ export default async function NewPrescriptionPage({
       adviceTemplates={adviceTemplates}
       doctors={doctors}
       defaultPatientId={params.patientId}
-      defaultPrescriptionDate={format(new Date(), "yyyy-MM-dd")}
+      defaultPrescriptionDate={formatInAppTimezone(new Date(), "yyyy-MM-dd")}
     />
   );
 }

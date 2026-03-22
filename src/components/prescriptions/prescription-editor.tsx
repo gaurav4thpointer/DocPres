@@ -22,7 +22,7 @@ import { useToast } from "@/components/ui/toaster";
 import type { DoctorForPrescription } from "@/lib/actions/doctor";
 import { parseEyeTemplateData } from "@/lib/prescription-templates/eye";
 import type { EyeTemplateData } from "@/lib/prescription-templates/eye";
-import { format } from "date-fns";
+import { formatInAppTimezone } from "@/lib/timezone";
 import { Plus, UserPlus, CheckCircle2, Save, Printer, ArrowLeft, Eye } from "lucide-react";
 import Link from "next/link";
 
@@ -32,7 +32,7 @@ interface Props {
   adviceTemplates: AdviceTemplate[];
   doctors?: DoctorForPrescription[];
   defaultPatientId?: string;
-  /** Server-provided date for new prescriptions (avoids hydration mismatch from timezone differences) */
+  /** Server-provided IST calendar date for new prescriptions (avoids hydration mismatch) */
   defaultPrescriptionDate?: string;
   editPrescription?: {
     id: string;
@@ -117,8 +117,8 @@ export function PrescriptionEditor({
       patientId: defaultPatientId ?? editPrescription?.patientId ?? "",
       doctorId: defaultDoctor?.id ?? "",
       prescriptionDate: editPrescription
-        ? format(new Date(editPrescription.prescriptionDate), "yyyy-MM-dd")
-        : defaultPrescriptionDate ?? format(new Date(), "yyyy-MM-dd"),
+        ? formatInAppTimezone(editPrescription.prescriptionDate, "yyyy-MM-dd")
+        : defaultPrescriptionDate ?? formatInAppTimezone(new Date(), "yyyy-MM-dd"),
       prescriptionType: defaultType,
       chiefComplaints: editPrescription?.chiefComplaints ?? "",
       diagnosis: editPrescription?.diagnosis ?? "",
@@ -126,7 +126,7 @@ export function PrescriptionEditor({
       investigations: editPrescription?.investigations ?? "",
       generalAdvice: editPrescription?.generalAdvice ?? "",
       followUpDate: editPrescription?.followUpDate
-        ? format(new Date(editPrescription.followUpDate), "yyyy-MM-dd")
+        ? formatInAppTimezone(editPrescription.followUpDate, "yyyy-MM-dd")
         : "",
       internalNotes: editPrescription?.internalNotes ?? "",
     },

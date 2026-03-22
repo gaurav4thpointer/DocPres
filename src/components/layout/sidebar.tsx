@@ -27,7 +27,7 @@ const baseNavItems: {
   highlight?: boolean;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/analytics", label: "Reporting", icon: BarChart3 },
   { href: "/prescriptions/new", label: "New Prescription", icon: PlusCircle, highlight: true },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/medicines", label: "Medicines", icon: Pill },

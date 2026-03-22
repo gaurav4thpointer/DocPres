@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format } from "date-fns";
+import { TZDate } from "@date-fns/tz";
+import { APP_TIMEZONE, formatInAppTimezone } from "@/lib/timezone";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -8,13 +9,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(date: Date | string | null | undefined, fmt = "dd MMM yyyy"): string {
   if (!date) return "—";
-  return format(new Date(date), fmt);
+  return formatInAppTimezone(date, fmt);
 }
 
 export function calculateAge(dob: Date | string | null | undefined): number | null {
   if (!dob) return null;
-  const birth = new Date(dob);
-  const today = new Date();
+  const birth = new TZDate(new Date(dob), APP_TIMEZONE);
+  const today = new TZDate(Date.now(), APP_TIMEZONE);
   let age = today.getFullYear() - birth.getFullYear();
   const m = today.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
