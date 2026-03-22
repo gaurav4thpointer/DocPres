@@ -1,15 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createDoctor, getClinicDoctors, resetDoctorPassword } from "@/lib/actions/admin";
+import {
+  createDoctor,
+  getClinicDoctors,
+  importDoctorsFromCsv,
+  resetDoctorPassword,
+} from "@/lib/actions/admin";
+import { buildDoctorsImportTemplateCsv } from "@/lib/doctor-import-csv";
 import { useToast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
-import { Key, UserPlus } from "lucide-react";
+import { FileDown, Key, Upload, UserPlus } from "lucide-react";
 import { PrescriptionType } from "@prisma/client";
 
 type DoctorRow = {
@@ -28,6 +34,7 @@ interface Props {
 export function DoctorsClient({ initialDoctors, clinicId }: Props) {
   const router = useRouter();
   const { toast } = useToast();
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [doctors, setDoctors] = useState(initialDoctors);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -74,16 +81,82 @@ export function DoctorsClient({ initialDoctors, clinicId }: Props) {
     }
   };
 
+  const downloadImportTemplate = () => {
+    const blob = new Blob([buildDoctorsImportTemplateCsv()], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "doctors-import-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportCsv: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setLoading("import-csv");
+    try {
+      const text = await file.text();
+      const result = await importDoctorsFromCsv(clinicId, text);
+      await refreshDoctors();
+      const detail =
+        result.errors.length > 0
+          ? ` ${result.errors
+              .slice(0, 5)
+              .map((err) => `Row ${err.row}: ${err.message}`)
+              .join(" · ")}${result.errors.length > 5 ? " …" : ""}`
+          : "";
+      if (result.created === 0 && result.errors.length > 0) {
+        toast(`Import failed.${detail}`, "error");
+      } else if (result.errors.length > 0) {
+        toast(`Imported ${result.created} doctor(s). Some rows failed.${detail}`, "info");
+      } else {
+        toast(`Imported ${result.created} doctor(s).`, "success");
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Import failed", "error");
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Doctors"
-        description="Add doctors to your clinic and reset their login passwords."
+        description="Add or import doctors, download a CSV template, and reset login passwords."
         actions={
-          <Button onClick={() => setShowAdd((s) => !s)}>
-            <UserPlus className="h-4 w-4" />
-            Add doctor
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" onClick={downloadImportTemplate}>
+              <FileDown className="h-4 w-4" />
+              Download template
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="sr-only"
+              aria-label="Import doctors CSV"
+              onChange={handleImportCsv}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={loading === "import-csv"}
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </Button>
+            <Button onClick={() => setShowAdd((s) => !s)}>
+              <UserPlus className="h-4 w-4" />
+              Add doctor
+            </Button>
+          </>
         }
       />
 

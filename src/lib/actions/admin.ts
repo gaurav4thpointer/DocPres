@@ -6,8 +6,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { UserRole, PrescriptionType } from "@prisma/client";
-import { signIn } from "@/lib/auth";
 import { createImpersonationToken } from "@/lib/auth";
+import { parseDoctorsImportCsv } from "@/lib/doctor-import-csv";
+
+export type ImportDoctorsResult = {
+  created: number;
+  errors: { row: number; message: string }[];
+};
 
 export async function getClinics(search?: string, page = 1, limit = 20) {
   const session = await auth();
@@ -173,20 +178,49 @@ const createDoctorSchema = z.object({
   defaultPrescriptionType: z.nativeEnum(PrescriptionType).default(PrescriptionType.GENERAL),
 });
 
-export async function createDoctor(clinicId: string, formData: FormData) {
+type CreateDoctorInput = z.infer<typeof createDoctorSchema>;
+
+async function resolveTargetClinicIdForDoctorMutation(
+  clinicId: string
+): Promise<string> {
   const session = await auth();
   const role = (session?.user as { role?: UserRole })?.role;
   const sessionClinicId = (session?.user as { clinicId?: string })?.clinicId;
 
-  let targetClinicId: string;
   if (role === UserRole.ADMIN) {
-    targetClinicId = clinicId;
-  } else if (role === UserRole.CLINIC && sessionClinicId) {
-    if (clinicId !== sessionClinicId) throw new Error("Access denied");
-    targetClinicId = sessionClinicId;
-  } else {
-    throw new Error("Access denied");
+    return clinicId;
   }
+  if (role === UserRole.CLINIC && sessionClinicId) {
+    if (clinicId !== sessionClinicId) throw new Error("Access denied");
+    return sessionClinicId;
+  }
+  throw new Error("Access denied");
+}
+
+async function insertDoctorForClinic(targetClinicId: string, data: CreateDoctorInput) {
+  const existing = await prisma.doctor.findFirst({
+    where: { clinicId: targetClinicId, email: data.email },
+  });
+  if (existing) throw new Error("A doctor with this email already exists in this clinic");
+
+  const passwordHash = await bcrypt.hash(data.password, 12);
+  await prisma.doctor.create({
+    data: {
+      clinicId: targetClinicId,
+      name: data.name,
+      email: data.email,
+      password: passwordHash,
+      qualification: data.qualification,
+      specialization: data.specialization,
+      registrationNo: data.registrationNo,
+      mobile: data.mobile,
+      defaultPrescriptionType: data.defaultPrescriptionType,
+    },
+  });
+}
+
+export async function createDoctor(clinicId: string, formData: FormData) {
+  const targetClinicId = await resolveTargetClinicIdForDoctorMutation(clinicId);
 
   const raw = {
     name: formData.get("name"),
@@ -202,29 +236,87 @@ export async function createDoctor(clinicId: string, formData: FormData) {
   const parsed = createDoctorSchema.safeParse(raw);
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
-  const existing = await prisma.doctor.findFirst({
-    where: { clinicId: targetClinicId, email: parsed.data.email },
-  });
-  if (existing) throw new Error("A doctor with this email already exists in this clinic");
-
-  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.doctor.create({
-    data: {
-      clinicId: targetClinicId,
-      name: parsed.data.name,
-      email: parsed.data.email,
-      password: passwordHash,
-      qualification: parsed.data.qualification,
-      specialization: parsed.data.specialization,
-      registrationNo: parsed.data.registrationNo,
-      mobile: parsed.data.mobile,
-      defaultPrescriptionType: parsed.data.defaultPrescriptionType,
-    },
-  });
+  await insertDoctorForClinic(targetClinicId, parsed.data);
 
   revalidatePath("/admin");
   revalidatePath("/doctors");
   return { success: true };
+}
+
+const MAX_DOCTOR_IMPORT_ROWS = 500;
+const MAX_DOCTOR_IMPORT_CHARS = 2 * 1024 * 1024;
+
+export async function importDoctorsFromCsv(
+  clinicId: string,
+  csvText: string
+): Promise<ImportDoctorsResult> {
+  const targetClinicId = await resolveTargetClinicIdForDoctorMutation(clinicId);
+
+  if (csvText.length > MAX_DOCTOR_IMPORT_CHARS) {
+    throw new Error("File is too large (max 2 MB)");
+  }
+
+  let parsedRows;
+  try {
+    parsedRows = parseDoctorsImportCsv(csvText).rows;
+  } catch (e) {
+    throw new Error(e instanceof Error ? e.message : "Invalid CSV");
+  }
+
+  if (parsedRows.length > MAX_DOCTOR_IMPORT_ROWS) {
+    throw new Error(`Too many rows (max ${MAX_DOCTOR_IMPORT_ROWS})`);
+  }
+
+  const errors: { row: number; message: string }[] = [];
+  let created = 0;
+  const headerRowOffset = 2;
+
+  for (let i = 0; i < parsedRows.length; i++) {
+    const row = parsedRows[i];
+    const csvRowNumber = i + headerRowOffset;
+
+    const rawType = (row.defaultPrescriptionType || "GENERAL").trim().toUpperCase();
+    if (rawType !== "GENERAL" && rawType !== "EYE") {
+      errors.push({
+        row: csvRowNumber,
+        message:
+          "defaultPrescriptionType must be GENERAL or EYE (empty defaults to GENERAL)",
+      });
+      continue;
+    }
+    const defaultPrescriptionType =
+      rawType === "EYE" ? PrescriptionType.EYE : PrescriptionType.GENERAL;
+
+    const parsed = createDoctorSchema.safeParse({
+      name: row.name,
+      email: row.email,
+      password: row.password,
+      qualification: row.qualification || undefined,
+      specialization: row.specialization || undefined,
+      registrationNo: row.registrationNo || undefined,
+      mobile: row.mobile || undefined,
+      defaultPrescriptionType,
+    });
+
+    if (!parsed.success) {
+      errors.push({ row: csvRowNumber, message: parsed.error.issues[0]?.message ?? "Invalid row" });
+      continue;
+    }
+
+    try {
+      await insertDoctorForClinic(targetClinicId, parsed.data);
+      created++;
+    } catch (e) {
+      errors.push({
+        row: csvRowNumber,
+        message: e instanceof Error ? e.message : "Failed to create doctor",
+      });
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/doctors");
+  return { created, errors };
 }
 
 export async function getClinicDoctors(clinicId: string) {

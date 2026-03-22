@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   importClinic,
@@ -9,7 +9,9 @@ import {
   impersonateClinic,
   getClinicDoctors,
   createDoctor,
+  importDoctorsFromCsv,
 } from "@/lib/actions/admin";
+import { buildDoctorsImportTemplateCsv } from "@/lib/doctor-import-csv";
 import { useToast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,8 @@ import {
   ChevronUp,
   Users,
   UserPlus,
+  FileDown,
+  Upload,
 } from "lucide-react";
 
 interface ClinicWithCount {
@@ -44,6 +48,8 @@ interface Props {
 export function AdminClinicsClient({ initialClinics, total }: Props) {
   const router = useRouter();
   const { toast } = useToast();
+  const doctorImportClinicIdRef = useRef<string | null>(null);
+  const doctorImportInputRef = useRef<HTMLInputElement>(null);
   const [clinics, setClinics] = useState(initialClinics);
   const [search, setSearch] = useState("");
   const [showImport, setShowImport] = useState(false);
@@ -140,8 +146,67 @@ export function AdminClinicsClient({ initialClinics, total }: Props) {
     }
   };
 
+  const downloadDoctorImportTemplate = () => {
+    const blob = new Blob([buildDoctorsImportTemplateCsv()], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "doctors-import-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openDoctorImportPicker = (clinicId: string) => {
+    doctorImportClinicIdRef.current = clinicId;
+    doctorImportInputRef.current?.click();
+  };
+
+  const handleDoctorImportCsv: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const clinicId = doctorImportClinicIdRef.current;
+    doctorImportClinicIdRef.current = null;
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!clinicId || !file) return;
+    setLoading(`import-docs-${clinicId}`);
+    try {
+      const text = await file.text();
+      const result = await importDoctorsFromCsv(clinicId, text);
+      const list = await getClinicDoctors(clinicId);
+      setDoctors((d) => ({ ...d, [clinicId]: list }));
+      router.refresh();
+      const detail =
+        result.errors.length > 0
+          ? ` ${result.errors
+              .slice(0, 5)
+              .map((err) => `Row ${err.row}: ${err.message}`)
+              .join(" · ")}${result.errors.length > 5 ? " …" : ""}`
+          : "";
+      if (result.created === 0 && result.errors.length > 0) {
+        toast(`Import failed.${detail}`, "error");
+      } else if (result.errors.length > 0) {
+        toast(`Imported ${result.created} doctor(s). Some rows failed.${detail}`, "info");
+      } else {
+        toast(`Imported ${result.created} doctor(s).`, "success");
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Import failed", "error");
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <input
+        ref={doctorImportInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="sr-only"
+        aria-label="Import doctors CSV for clinic"
+        onChange={handleDoctorImportCsv}
+      />
       {/* Search & Import */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex gap-2 flex-1 min-w-[200px]">
@@ -293,19 +358,35 @@ export function AdminClinicsClient({ initialClinics, total }: Props) {
 
               {expandedClinic === clinic.id && doctors[clinic.id] && (
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
                       <Users className="h-4 w-4" />
                       Doctors
                     </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAddDoctorClinicId(addDoctorClinicId === clinic.id ? null : clinic.id)}
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Add Doctor
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="outline" type="button" onClick={downloadDoctorImportTemplate}>
+                        <FileDown className="h-3.5 w-3.5" />
+                        Template
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        loading={loading === `import-docs-${clinic.id}`}
+                        onClick={() => openDoctorImportPicker(clinic.id)}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Import CSV
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAddDoctorClinicId(addDoctorClinicId === clinic.id ? null : clinic.id)}
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Add Doctor
+                      </Button>
+                    </div>
                   </div>
 
                   {addDoctorClinicId === clinic.id && (
