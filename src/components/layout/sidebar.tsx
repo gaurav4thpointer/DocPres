@@ -13,6 +13,7 @@ import {
   LogOut,
   PlusCircle,
   UserCog,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -26,6 +27,7 @@ const baseNavItems: {
   highlight?: boolean;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/prescriptions/new", label: "New Prescription", icon: PlusCircle, highlight: true },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/medicines", label: "Medicines", icon: Pill },
@@ -64,6 +66,8 @@ export function Sidebar({ userRole }: { userRole?: UserRole }) {
           const active =
             href === "/dashboard"
               ? pathname === "/dashboard"
+              : href === "/analytics"
+              ? pathname === "/analytics"
               : href === "/prescriptions/new"
               ? pathname === "/prescriptions/new"
               : href === "/medicines"
