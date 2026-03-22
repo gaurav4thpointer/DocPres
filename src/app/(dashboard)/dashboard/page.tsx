@@ -40,7 +40,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <PageHeader
-        title={`Good morning, Dr. ${doctor?.name ?? "Doctor"}`}
+        title={`Welcome, Dr. ${doctor?.name ?? "Doctor"}`}
         description="Here's what's happening at your clinic today"
       />
 
