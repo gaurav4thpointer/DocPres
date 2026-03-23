@@ -113,7 +113,7 @@ Seed creates:
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Use `/login` for clinic and doctor accounts, `/admin/login` for the platform admin.
+Open [http://localhost:3000](http://localhost:3000). Use `/login` for clinic and doctor accounts.
 
 ---
 
@@ -134,7 +134,6 @@ Open [http://localhost:3000](http://localhost:3000). Use `/login` for clinic and
 | `/doctors` | Doctors (visible to **clinic** role) |
 | `/settings` | Profile and clinic print assets |
 | `/print/prescription/[id]` | Print layout |
-| `/admin/login` | Admin sign-in |
 | `/admin` | Admin console |
 | `/impersonate` | Consumes short-lived token to sign in as clinic (admin flow) |
 
@@ -181,7 +180,7 @@ docpres-app/
 ├── Dockerfile
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/            # login, forgot-password, admin/login
+│   │   ├── (auth)/            # login, forgot-password
 │   │   ├── (dashboard)/       # dashboard, patients, medicines, prescriptions, doctors, settings
 │   │   ├── (print)/           # print layout + /print/prescription/[id]
 │   │   ├── admin/             # platform admin UI

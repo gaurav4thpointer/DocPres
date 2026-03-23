@@ -29,6 +29,7 @@ export const authConfig: NextAuthConfig = {
       const nextUrl = request.nextUrl;
       const isLoggedIn = !!auth?.user;
       const isAuthPage = nextUrl.pathname === "/login";
+      const isRegisterClinic = nextUrl.pathname === "/register-clinic";
       const isAdminLogin = nextUrl.pathname.startsWith("/admin/login");
       const isForgotPassword = nextUrl.pathname.startsWith("/forgot-password");
       const isApiAuth = nextUrl.pathname.startsWith("/api/auth");
@@ -54,8 +55,9 @@ export const authConfig: NextAuthConfig = {
         return true;
       }
 
-      if (!isLoggedIn && !isAuthPage && nextUrl.pathname !== "/impersonate") return false;
-      if (isLoggedIn && isAuthPage) {
+      if (!isLoggedIn && !isAuthPage && !isRegisterClinic && nextUrl.pathname !== "/impersonate")
+        return false;
+      if (isLoggedIn && (isAuthPage || isRegisterClinic)) {
         const role = (auth.user as { role?: UserRole })?.role;
         if (role === UserRole.ADMIN) {
           return Response.redirect(new URL("/admin", nextUrl));

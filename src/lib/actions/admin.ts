@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import { UserRole, PrescriptionType } from "@prisma/client";
 import { createImpersonationToken } from "@/lib/auth";
 import { parseDoctorsImportCsv } from "@/lib/doctor-import-csv";
+import { normalizeClinicSlug } from "@/lib/clinic-slug";
 
 export type ImportDoctorsResult = {
   created: number;
@@ -43,18 +44,6 @@ export async function getClinics(search?: string, page = 1, limit = 20) {
   ]);
 
   return { clinics, total };
-}
-
-/** Turns user input into a URL-safe clinic slug (lowercase, hyphens, no spaces). */
-function normalizeClinicSlug(input: unknown): string {
-  if (typeof input !== "string") return "";
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 const importClinicSchema = z.object({
