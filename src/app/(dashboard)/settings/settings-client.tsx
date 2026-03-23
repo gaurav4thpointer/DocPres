@@ -13,7 +13,6 @@ import { updateDoctorProfile, updateClinicSettings } from "@/lib/actions/doctor"
 import { createAdviceTemplate, deleteAdviceTemplate } from "@/lib/actions/advice";
 import { useToast } from "@/components/ui/toaster";
 import { Save, Plus, Trash2, Upload, User, Building2, BookOpen } from "lucide-react";
-import Image from "next/image";
 
 type DoctorWithClinic = Doctor & { clinicSettings: ClinicSettings | null };
 type SettingsDoctor = Pick<
@@ -201,11 +200,19 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates, isCl
               <div className="grid grid-cols-3 gap-4">
                 <FormField label="Clinic Logo">
                   <div className="space-y-2">
-                    {clinic?.logoPath && (
-                      <div className="relative h-16 w-16 rounded border border-gray-200 overflow-hidden">
-                        <Image src={clinic.logoPath} alt="logo" fill className="object-contain" />
+                    {clinic?.logoPath ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-gray-500">Current upload</span>
+                        <div className="h-20 w-20 rounded border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center p-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={clinic.logoPath}
+                            alt="Clinic logo"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
                       </div>
-                    )}
+                    ) : null}
                     <label className="flex items-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500 hover:border-sky-300 hover:text-sky-600 transition-colors">
                       <Upload className="h-3.5 w-3.5" />
                       Upload Logo
@@ -215,11 +222,19 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates, isCl
                 </FormField>
                 <FormField label="Signature">
                   <div className="space-y-2">
-                    {clinic?.signaturePath && (
-                      <div className="relative h-16 w-24 rounded border border-gray-200 overflow-hidden">
-                        <Image src={clinic.signaturePath} alt="signature" fill className="object-contain" />
+                    {clinic?.signaturePath ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-gray-500">Current upload</span>
+                        <div className="h-20 w-32 rounded border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center p-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={clinic.signaturePath}
+                            alt="Signature"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
                       </div>
-                    )}
+                    ) : null}
                     <label className="flex items-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500 hover:border-sky-300 hover:text-sky-600 transition-colors">
                       <Upload className="h-3.5 w-3.5" />
                       Upload Signature
@@ -229,11 +244,19 @@ export function SettingsClient({ doctor, adviceTemplates: initialTemplates, isCl
                 </FormField>
                 <FormField label="Stamp / Seal">
                   <div className="space-y-2">
-                    {clinic?.stampPath && (
-                      <div className="relative h-16 w-16 rounded border border-gray-200 overflow-hidden">
-                        <Image src={clinic.stampPath} alt="stamp" fill className="object-contain" />
+                    {clinic?.stampPath ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-gray-500">Current upload</span>
+                        <div className="h-20 w-20 rounded border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center p-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={clinic.stampPath}
+                            alt="Stamp"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
                       </div>
-                    )}
+                    ) : null}
                     <label className="flex items-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500 hover:border-sky-300 hover:text-sky-600 transition-colors">
                       <Upload className="h-3.5 w-3.5" />
                       Upload Stamp

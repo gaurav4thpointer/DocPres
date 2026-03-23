@@ -59,10 +59,54 @@ export async function getDoctorProfile() {
     };
   }
 
-  return prisma.doctor.findUnique({
+  const doctor = await prisma.doctor.findUnique({
     where: { id: session.user.id },
-    include: { clinicSettings: true },
+    include: {
+      clinicSettings: true,
+      clinic: {
+        select: {
+          name: true,
+          address: true,
+          phone: true,
+          logoPath: true,
+          footerText: true,
+        },
+      },
+    },
   });
+  if (!doctor) return null;
+
+  const { clinic: clinicRow, ...doctorRest } = doctor;
+
+  const mergedSettings =
+    doctorRest.clinicSettings == null
+      ? {
+          id: "",
+          doctorId: doctorRest.id,
+          clinicId: doctorRest.clinicId,
+          clinicName: clinicRow.name,
+          address: clinicRow.address,
+          phone: clinicRow.phone,
+          logoPath: clinicRow.logoPath,
+          signaturePath: null as string | null,
+          stampPath: null as string | null,
+          footerText: clinicRow.footerText,
+          createdAt: doctorRest.createdAt,
+          updatedAt: doctorRest.updatedAt,
+        }
+      : {
+          ...doctorRest.clinicSettings,
+          clinicName: doctorRest.clinicSettings.clinicName ?? clinicRow.name,
+          address: doctorRest.clinicSettings.address ?? clinicRow.address,
+          phone: doctorRest.clinicSettings.phone ?? clinicRow.phone,
+          logoPath: doctorRest.clinicSettings.logoPath ?? clinicRow.logoPath,
+          footerText: doctorRest.clinicSettings.footerText ?? clinicRow.footerText,
+        };
+
+  return {
+    ...doctorRest,
+    clinicSettings: mergedSettings,
+  };
 }
 
 export async function getDefaultPrescriptionType(): Promise<PrescriptionType> {
