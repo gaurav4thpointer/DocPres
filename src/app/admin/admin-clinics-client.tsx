@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   importClinic,
@@ -10,7 +10,9 @@ import {
   getClinicDoctors,
   createDoctor,
   importDoctorsFromCsv,
+  updateClinicSubscriptionPlan,
 } from "@/lib/actions/admin";
+import { SubscriptionPlan } from "@prisma/client";
 import { buildDoctorsImportTemplateCsv } from "@/lib/doctor-import-csv";
 import { useToast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,7 @@ interface ClinicWithCount {
   email: string;
   slug: string;
   isActive: boolean;
+  subscriptionPlan: SubscriptionPlan;
   _count?: { doctors: number };
 }
 
@@ -45,12 +48,25 @@ interface Props {
   total: number;
 }
 
+const SUBSCRIPTION_PLAN_OPTIONS: { value: SubscriptionPlan; label: string }[] = [
+  { value: SubscriptionPlan.DEMO, label: "Demo (50/mo)" },
+  { value: SubscriptionPlan.STARTER, label: "Starter (2k/mo)" },
+  { value: SubscriptionPlan.GROWTH, label: "Growth (10k/mo)" },
+  { value: SubscriptionPlan.SCALE, label: "Scale (50k/mo)" },
+];
+
 export function AdminClinicsClient({ initialClinics, total }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const doctorImportClinicIdRef = useRef<string | null>(null);
   const doctorImportInputRef = useRef<HTMLInputElement>(null);
   const [clinics, setClinics] = useState(initialClinics);
+  const [planDraft, setPlanDraft] = useState<Partial<Record<string, SubscriptionPlan>>>({});
+
+  useEffect(() => {
+    setClinics(initialClinics);
+    setPlanDraft({});
+  }, [initialClinics]);
   const [search, setSearch] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -61,6 +77,32 @@ export function AdminClinicsClient({ initialClinics, total }: Props) {
   const [doctors, setDoctors] = useState<
     Record<string, { id: string; name: string; email: string; isActive: boolean; defaultPrescriptionType?: string | null }[]>
   >({});
+
+  const planSelectValue = (clinic: ClinicWithCount) =>
+    planDraft[clinic.id] ?? clinic.subscriptionPlan;
+
+  const handleSaveSubscriptionPlan = async (clinic: ClinicWithCount) => {
+    const next = planSelectValue(clinic);
+    if (next === clinic.subscriptionPlan) {
+      toast("Plan unchanged", "success");
+      return;
+    }
+    setLoading(`plan-${clinic.id}`);
+    try {
+      await updateClinicSubscriptionPlan(clinic.id, next);
+      toast("Subscription plan updated", "success");
+      setPlanDraft((d) => {
+        const rest = { ...d };
+        delete rest[clinic.id];
+        return rest;
+      });
+      router.refresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update plan", "error");
+    } finally {
+      setLoading(null);
+    }
+  };
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -323,6 +365,38 @@ export function AdminClinicsClient({ initialClinics, total }: Props) {
                       ? `${clinic._count.doctors} doctors`
                       : "—"}
                   </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <label htmlFor={`subscription-plan-${clinic.id}`} className="text-xs text-gray-500">
+                      Plan
+                    </label>
+                    <select
+                      id={`subscription-plan-${clinic.id}`}
+                      className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs"
+                      value={planSelectValue(clinic)}
+                      onChange={(e) =>
+                        setPlanDraft((d) => ({
+                          ...d,
+                          [clinic.id]: e.target.value as SubscriptionPlan,
+                        }))
+                      }
+                    >
+                      {SUBSCRIPTION_PLAN_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      loading={loading === `plan-${clinic.id}`}
+                      onClick={() => handleSaveSubscriptionPlan(clinic)}
+                    >
+                      Save plan
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Button

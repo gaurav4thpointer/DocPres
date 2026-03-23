@@ -1,5 +1,7 @@
 import { getDashboardStats } from "@/lib/actions/prescriptions";
 import { getDoctorProfile } from "@/lib/actions/doctor";
+import { getClinicSubscriptionOverview } from "@/lib/actions/subscription";
+import { formatInAppTimezone } from "@/lib/timezone";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +16,14 @@ import {
   Pill,
   ChevronRight,
   TrendingUp,
+  Gauge,
 } from "lucide-react";
 
 export default async function DashboardPage() {
-  const [stats, doctor] = await Promise.all([
+  const [stats, doctor, subscription] = await Promise.all([
     getDashboardStats(),
     getDoctorProfile(),
+    getClinicSubscriptionOverview(),
   ]);
 
   const statCards = [
@@ -43,6 +47,42 @@ export default async function DashboardPage() {
         title={`Welcome, Dr. ${doctor?.name ?? "Doctor"}`}
         description="Here's what's happening at your clinic today"
       />
+
+      {subscription && (
+        <Card className="mb-6 border-sky-100 bg-sky-50/40">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                <Gauge className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900">Subscription usage</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Finalized prescriptions · {formatInAppTimezone(new Date(), "MMMM yyyy")} (IST)
+                </p>
+                <div className="mt-3 h-2 rounded-full bg-white/80 border border-sky-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-sky-600 transition-all"
+                    style={{
+                      width: `${Math.min(100, (subscription.usedThisMonth / subscription.limit) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-sm text-gray-700 mt-2">
+                  <span className="font-semibold tabular-nums">
+                    {subscription.usedThisMonth}
+                  </span>
+                  <span className="text-gray-400"> / </span>
+                  <span className="tabular-nums">{subscription.limit}</span>
+                  <span className="text-gray-500"> used</span>
+                  <span className="text-gray-400"> · </span>
+                  <span className="text-gray-600">Plan: {subscription.planLabel}</span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 mb-6">

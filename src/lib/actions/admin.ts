@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { UserRole, PrescriptionType } from "@prisma/client";
+import { UserRole, PrescriptionType, SubscriptionPlan } from "@prisma/client";
 import { createImpersonationToken } from "@/lib/auth";
 import { parseDoctorsImportCsv } from "@/lib/doctor-import-csv";
 import { normalizeClinicSlug } from "@/lib/clinic-slug";
@@ -334,4 +334,18 @@ export async function getClinicDoctors(clinicId: string) {
   }
 
   return [];
+}
+
+export async function updateClinicSubscriptionPlan(clinicId: string, subscriptionPlan: SubscriptionPlan) {
+  const session = await auth();
+  const role = (session?.user as { role?: UserRole })?.role;
+  if (role !== UserRole.ADMIN) throw new Error("Admin access required");
+
+  await prisma.clinic.update({
+    where: { id: clinicId },
+    data: { subscriptionPlan },
+  });
+
+  revalidatePath("/admin");
+  return { success: true };
 }

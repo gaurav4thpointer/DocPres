@@ -18,6 +18,20 @@ export function startOfAppDay(d: Date): Date {
   return new Date(midnight.getTime());
 }
 
+/** First instant of the IST calendar month containing `d`, as a UTC `Date`. */
+export function startOfAppMonth(d: Date): Date {
+  const z = new TZDate(d, APP_TIMEZONE);
+  const first = new TZDate(z.getFullYear(), z.getMonth(), 1, APP_TIMEZONE);
+  return new Date(first.getTime());
+}
+
+/** First instant of the IST month after the one containing `d`, as a UTC `Date` (exclusive end for range queries). */
+export function startOfNextAppMonth(d: Date): Date {
+  const z = new TZDate(d, APP_TIMEZONE);
+  const next = new TZDate(z.getFullYear(), z.getMonth() + 1, 1, APP_TIMEZONE);
+  return new Date(next.getTime());
+}
+
 /** `YYYY-MM-DD` for the IST calendar day of this instant. */
 export function appCalendarYmd(d: Date): string {
   return formatInAppTimezone(d, "yyyy-MM-dd");

@@ -1,4 +1,12 @@
-import { PrismaClient, Gender, MedicineForm, MedicineTiming, PrescriptionStatus, PrescriptionType } from "@prisma/client";
+import {
+  PrismaClient,
+  Gender,
+  MedicineForm,
+  MedicineTiming,
+  PrescriptionStatus,
+  PrescriptionType,
+  SubscriptionPlan,
+} from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
@@ -31,7 +39,7 @@ async function main() {
     },
   });
 
-  // Clinic
+  // Clinic — Scale plan for local dev so seeded data is not capped at DEMO (50/mo).
   const clinicPassword = await bcrypt.hash("clinic123", 12);
   const clinic = await prisma.clinic.create({
     data: {
@@ -43,6 +51,7 @@ async function main() {
       phone: "020-27654321",
       footerText:
         "This prescription is valid for 30 days. Follow the prescribed dosage strictly. Consult doctor if symptoms persist or worsen.",
+      subscriptionPlan: SubscriptionPlan.SCALE,
     },
   });
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { MedicineTiming, PrescriptionStatus, PrescriptionType, Prisma } from "@prisma/client";
+import { assertClinicCanFinalizePrescription } from "@/lib/subscription";
 
 const prescriptionItemSchema = z.object({
   medicineId: z.string().optional().nullable(),
@@ -18,6 +19,47 @@ const prescriptionItemSchema = z.object({
   instructions: z.string().optional().nullable(),
   sortOrder: z.number().default(0),
 });
+
+type PrescriptionItemInput = z.infer<typeof prescriptionItemSchema>;
+
+async function assertPatientAllowedForPrescription(
+  patientId: string,
+  clinicId: string,
+  role: string,
+  userId: string
+) {
+  const patient = await prisma.patient.findFirst({
+    where: {
+      id: patientId,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: userId }),
+    },
+    select: { id: true },
+  });
+  if (!patient) throw new Error("Patient not found or access denied");
+}
+
+async function assertMedicineItemsAllowedForPrescriber(
+  items: PrescriptionItemInput[],
+  clinicId: string,
+  doctorId: string
+) {
+  const ids = [
+    ...new Set(items.map((i) => i.medicineId).filter((x): x is string => typeof x === "string" && x.length > 0)),
+  ];
+  if (ids.length === 0) return;
+  const rows = await prisma.medicine.findMany({
+    where: { id: { in: ids }, clinicId, doctorId },
+    select: { id: true },
+  });
+  if (rows.length !== ids.length) {
+    throw new Error("One or more medicines are invalid for this prescriber");
+  }
+}
+
+function assertFiniteDate(d: Date, label: string) {
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid ${label}`);
+}
 
 const prescriptionSchema = z.object({
   patientId: z.string().min(1, "Patient is required"),
@@ -108,11 +150,14 @@ export async function createPrescription(data: z.infer<typeof prescriptionSchema
   const role = (session.user as { role?: string }).role;
   if (!clinicId) throw new Error("No clinic context");
 
+  const parsed = prescriptionSchema.safeParse(data);
+  if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+
   let doctorId = session.user.id;
   if (role === "CLINIC") {
-    const doctor = data.doctorId
+    const doctor = parsed.data.doctorId
       ? await prisma.doctor.findFirst({
-          where: { id: data.doctorId, clinicId },
+          where: { id: parsed.data.doctorId, clinicId },
           select: { id: true },
         })
       : await prisma.doctor.findFirst({
@@ -123,18 +168,33 @@ export async function createPrescription(data: z.infer<typeof prescriptionSchema
     doctorId = doctor.id;
   }
 
-  const parsed = prescriptionSchema.safeParse(data);
-  if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+  await assertPatientAllowedForPrescription(
+    parsed.data.patientId,
+    clinicId,
+    role ?? "",
+    session.user.id
+  );
+  await assertMedicineItemsAllowedForPrescriber(parsed.data.items, clinicId, doctorId);
 
   const { items, ...prescriptionData } = parsed.data;
+  delete (prescriptionData as { doctorId?: string }).doctorId;
+
+  const prescriptionDate = new Date(prescriptionData.prescriptionDate);
+  const followUpDate = prescriptionData.followUpDate ? new Date(prescriptionData.followUpDate) : null;
+  assertFiniteDate(prescriptionDate, "prescription date");
+  if (followUpDate) assertFiniteDate(followUpDate, "follow-up date");
+
+  if (prescriptionData.status === PrescriptionStatus.FINALIZED) {
+    await assertClinicCanFinalizePrescription(clinicId, prescriptionDate);
+  }
 
   const prescription = await prisma.prescription.create({
     data: {
       clinicId,
       doctorId,
       ...prescriptionData,
-      prescriptionDate: new Date(prescriptionData.prescriptionDate),
-      followUpDate: prescriptionData.followUpDate ? new Date(prescriptionData.followUpDate) : null,
+      prescriptionDate,
+      followUpDate,
       templateData: prescriptionData.templateData ?? null,
       items: {
         create: items.map((item, i) => ({ ...item, sortOrder: i })),
@@ -170,14 +230,35 @@ export async function updatePrescription(id: string, data: z.infer<typeof prescr
   const parsed = prescriptionSchema.safeParse(data);
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
-  const { items, doctorId: _doctorId, ...prescriptionData } = parsed.data;
+  await assertPatientAllowedForPrescription(
+    parsed.data.patientId,
+    clinicId,
+    role ?? "",
+    session.user.id
+  );
+  await assertMedicineItemsAllowedForPrescriber(parsed.data.items, clinicId, existing.doctorId);
+
+  const { items, ...prescriptionData } = parsed.data;
+  delete (prescriptionData as { doctorId?: string }).doctorId;
+
+  const prescriptionDate = new Date(prescriptionData.prescriptionDate);
+  const followUpDate = prescriptionData.followUpDate ? new Date(prescriptionData.followUpDate) : null;
+  assertFiniteDate(prescriptionDate, "prescription date");
+  if (followUpDate) assertFiniteDate(followUpDate, "follow-up date");
+
+  if (
+    parsed.data.status === PrescriptionStatus.FINALIZED &&
+    existing.status === PrescriptionStatus.DRAFT
+  ) {
+    await assertClinicCanFinalizePrescription(clinicId, prescriptionDate);
+  }
 
   const prescription = await prisma.prescription.update({
     where: { id },
     data: {
       ...prescriptionData,
-      prescriptionDate: new Date(prescriptionData.prescriptionDate),
-      followUpDate: prescriptionData.followUpDate ? new Date(prescriptionData.followUpDate) : null,
+      prescriptionDate,
+      followUpDate,
       templateData: prescriptionData.templateData ?? null,
       items: {
         deleteMany: {},
@@ -199,7 +280,20 @@ export async function finalizePrescription(id: string) {
   const role = (session.user as { role?: string }).role;
   if (!clinicId) throw new Error("No clinic context");
 
-  await prisma.prescription.updateMany({
+  const draft = await prisma.prescription.findFirst({
+    where: {
+      id,
+      clinicId,
+      ...(role === "DOCTOR" && { doctorId: session.user.id }),
+      status: PrescriptionStatus.DRAFT,
+    },
+    select: { prescriptionDate: true },
+  });
+  if (!draft) throw new Error("Prescription not found or already finalized");
+
+  await assertClinicCanFinalizePrescription(clinicId, draft.prescriptionDate);
+
+  const result = await prisma.prescription.updateMany({
     where: {
       id,
       clinicId,
@@ -208,6 +302,7 @@ export async function finalizePrescription(id: string) {
     },
     data: { status: PrescriptionStatus.FINALIZED },
   });
+  if (result.count === 0) throw new Error("Prescription not found or already finalized");
 
   revalidatePath("/prescriptions");
   revalidatePath(`/prescriptions/${id}`);
